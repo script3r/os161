@@ -46,6 +46,7 @@ fd_destroy( struct filedesc *fdesc ) {
 int
 fd_create( struct filedesc **fdesc ) {
 	struct filedesc 	*fd = NULL;
+	int 			i = 0;
 
 	fd = kmalloc( sizeof( struct filedesc ) );
 	if( fd == NULL ) 
@@ -57,6 +58,10 @@ fd_create( struct filedesc **fdesc ) {
 		kfree( fd );
 		return ENOMEM;
 	}
+
+	//initialize all open files
+	for( i = 0; i < MAX_OPEN_FILES; ++i ) 
+		fd->fd_ofiles[i] = NULL;
 
 	//we are good to go
 	*fdesc = fd;
