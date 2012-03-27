@@ -1,0 +1,58 @@
+01 Mar 2012 : GWA : This is ASST1 solution v. 1.0.
+05 Mar 2012 : GWA : This is ASST1 solution v. 1.1.
+
+It contains:
+  1) Working locks.
+  2) Working CVs.
+
+It does not contain:
+  1) Working reader-writer locks.
+  2) Solutions to the synchronization problems.
+
+Reader-writer locks may be included in a future ASST1 solution archive, but
+for now neither of the things that it does *not* contain should prevent you
+from making forward progress on ASST2.
+
+There are two ways to bring your Git repository into line with your solution.
+The first thing to do is commit anything you have uncommitted and make sure
+that your git status shows a clean directory. After that, here are the two
+options:
+
+1) git revert + patch
+
+The sol10.patch file is against commit 02a93045, or the same one that starts
+ASST2. If you have not received this commit yet do a git pull to do so. It's
+probably a good idea to do a git pull anyway, just in case.
+
+The sol11.path is against the sol10.path, so you should apply them in order.
+
+The first thing you have to do is locate the commit that contains your ASST0
+changes: adding your username and debug messages. You may have tagged this
+commit to begin ASST1. Use git log to locate the appropriate commit tag.
+
+Once you have located it, ask git to revert your ASST1 changes and then apply
+our patches.
+
+$ git revert <ASST1 start tag>
+$ patch -p1 sol10.patch
+$ patch -p1 sol11.patch
+$ git commit -a
+
+If you have previously applied the sol10.patch you should be able to simply
+apply the sol11.patch on top of your current source tree.
+
+2) copy files
+
+The other option is to do the merge by hand starting with your current
+working tree. All the files we changed are included in this archive. Several
+can be copied; for others, you will need to do the merge by hand, but the
+changes are very limited.
+
+  1) synch.c, synch.h: solution primitives. These files can be copied.
+  2) version.h, main.c: add solution set version to kernel boot messages.
+  These files must be merged by hand or you will break changes you made for
+  ASST0. (Specifically, making sure that your group or username prints during
+  bootup, which our grading scripts will check.)
+
+After committing any changes, simply move these files into place and commit
+the resulting changes.

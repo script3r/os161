@@ -58,4 +58,12 @@ void enter_new_process(int argc, userptr_t argv, vaddr_t stackptr,
 int sys_reboot(int code);
 int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
 
+/*
+ * I/O syscalls
+ */
+
+int	sys_open( userptr_t, int, int *);
+int 	sys_close( int );
+int	sys_write( int, userptr_t, size_t,  int * );
+
 #endif /* _SYSCALL_H_ */

@@ -40,6 +40,9 @@
 #include <sfs.h>
 #include <syscall.h>
 #include <test.h>
+#include <proc.h>
+#include <current.h>
+
 #include "opt-synchprobs.h"
 #include "opt-sfs.h"
 #include "opt-net.h"
@@ -88,7 +91,11 @@ cmd_progthread(void *ptr, unsigned long nargs)
 	char **args = ptr;
 	char progname[128];
 	int result;
-
+	
+	//we are going to use this process
+	//to wrap around the thread
+	struct proc	*p = NULL;
+	
 	KASSERT(nargs >= 1);
 
 	if (nargs > 2) {
@@ -99,7 +106,15 @@ cmd_progthread(void *ptr, unsigned long nargs)
 	KASSERT(strlen(args[0]) < sizeof(progname));
 
 	strcpy(progname, args[0]);
-
+	
+	//create the process
+	result = proc_create( &p );
+	if( result ) 
+		panic( "could not create proc1." );
+	
+	//attach the process to the current thread
+	curthread->td_proc = p;
+	
 	result = runprogram(progname);
 	if (result) {
 		kprintf("Running program %s failed: %s\n", args[0],
@@ -675,6 +690,9 @@ menu(char *args)
 	char buf[64];
 
 	menu_execute(args, 1);
+	
+	//initialize the proc system
+	proc_system_init();
 
 	while (1) {
 		kprintf("OS/161 kernel [? for menu]: ");

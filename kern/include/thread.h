@@ -38,6 +38,7 @@
 
 #include <spinlock.h>
 #include <threadlist.h>
+#include <proc.h>
 
 struct addrspace;
 struct cpu;
@@ -111,7 +112,8 @@ struct thread {
 	/* VFS */
 	struct vnode *t_cwd;		/* current working directory */
 
-	/* add more here as needed */
+	/* modifications for ASST2 */
+	struct proc	*td_proc;	/* process associated with this thread */
 };
 
 /* Call once during system startup to allocate data structures. */

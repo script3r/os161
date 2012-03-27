@@ -368,6 +368,17 @@ file      syscall/loadelf.c
 file      syscall/runprogram.c
 file      syscall/time_syscalls.c
 
+file	  syscall/open.c
+file	  syscall/write.c
+file	  syscall/close.c
+
+#IO
+file	  io/file.c
+file	  io/filedesc.c
+
+#PROC
+file	  proc/proc.c
+
 #
 # Startup and initialization
 #
