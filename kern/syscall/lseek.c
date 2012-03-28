@@ -1,9 +1,13 @@
+#include <types.h>
+#include <lib.h>
 #include <proc.h>
 #include <file.h>
 #include <vnode.h>
 #include <vfs.h>
 #include <stat.h>
 #include <kern/fcntl.h>
+#include <kern/seek.h>
+#include <kern/errno.h>
 #include <current.h>
 #include <syscall.h>
 
@@ -26,7 +30,7 @@ sys_lseek( int fd, off_t offset, int whence, int64_t *retval ) {
 
 	//use VOP_TRYSEEK to verify whether the desired
 	//seeking location is proper.
-	err = VOP_TRYSEEK( p->f_vnode, offset );
+	err = VOP_TRYSEEK( f->f_vnode, offset );
 	if( err ) {
 		F_UNLOCK( f );
 		return err;
@@ -51,7 +55,8 @@ sys_lseek( int fd, off_t offset, int whence, int64_t *retval ) {
 				return err;
 			}
 
-			f->f_offset = st->st_size;
+			//set the offet to the filesize.
+			f->f_offset = st.st_size;
 			break;
 		default:
 			F_UNLOCK( f );
