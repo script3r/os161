@@ -30,7 +30,7 @@ int main( int argc, char *argv[] ) {
 	
 	//print a sample message to STDOUT.
 	//this should end up inside the file.
-	printf( "I should be seeing this message inside hello.txt" );
+	printf( "I should be seeing this message inside hello.txt\n" );
 	
 	//close fd_out
 	err = close( fd_out );

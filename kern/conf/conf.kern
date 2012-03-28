@@ -375,6 +375,7 @@ file	  syscall/read.c
 file	  syscall/__getcwd.c
 file	  syscall/lseek.c
 file	  syscall/dup2.c
+file	  syscall/chdir.c
 
 #IO
 file	  io/file.c
