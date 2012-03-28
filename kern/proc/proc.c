@@ -5,20 +5,113 @@
 
 struct proc 		*allproc[MAX_PROCESSES];
 struct lock 		*lk_allproc;
+int			next_pid;
+
+/**
+ * quick function that simply a spot as reserved,
+ * stores the index of the spot inside the pid
+ * and unlocks allproc.
+ */
+static
+void
+proc_found_spot( pid_t *pid, int spot ) {
+	//if we are being called, allproc[spot] must be null.
+	KASSERT( allproc[spot] == NULL );
+	
+	//mark it as reserved.
+	allproc[spot] = (void *)PROC_RESERVED_SPOT;
+	*pid = spot;
+			
+	//adjust next_pid to be the one just given.
+	next_pid = spot + 1;
+
+	//release the lock
+	lock_release( lk_allproc );
+}
+
+/**
+ * attempts to allocate a new pid by looping
+ * through allproc, starting from next_pid, until finding an empty spot.
+ * once a spot is given, it is marked as reserved.
+ */
+static
+int
+proc_alloc_pid( pid_t *pid ) {
+	int		i = 0;
+
+	//lock allproc, to guarantee atomicity
+	lock_acquire( lk_allproc );
+	
+	//if the next_pid is greater than the maximum number of processes
+	//we need to start failing pid allocations.
+	if( next_pid >= MAX_PROCESSES )
+		next_pid = 0;
+	
+	
+	//first we loop until the end, starting from lastpid.
+	for( i = next_pid; i < MAX_PROCESSES; ++i ) {
+		if( allproc[i] == NULL ) {
+			proc_found_spot( pid, i );
+			return 0;
+		}
+	}
+
+	//now we loop from the beginning until next_pid
+	for( i = 0; i < next_pid; ++i ) {
+		if( allproc[i] == NULL ) {
+			proc_found_spot( pid, i );
+			return 0;
+		}
+	}
+
+	//we couldn't find a spot, so we have to fail.
+	lock_release( lk_allproc );
+	return ENPROC;
+}
+
+/**
+ * de-allocates the given pid.
+ */
+static
+void
+proc_dealloc_pid( pid_t pid ) {
+	//lock for atomicity.
+	lock_acquire( lk_allproc );
+
+	//it cannot be null, it must be either reserved or fulfilled.
+	KASSERT( allproc[pid] != NULL );
+	allproc[pid] = NULL;
+	
+	//unlock and be done.
+	lock_release( lk_allproc );
+}
 
 int
 proc_create( struct proc **res ) {
 	struct proc	*p = NULL;
 	int		err = 0;
+	pid_t		pid;
 
+	//first, attempt to allocate a pid.
+	err = proc_alloc_pid( &pid );
+	if( err )
+		return err;
+
+	//alloc memory for the structure
 	p = kmalloc( sizeof( struct proc ) );
-	if( p == NULL )
+	if( p == NULL ) {
+		proc_dealloc_pid( pid );
 		return ENOMEM;
+	}
 		
+	//associcate it with the pid.
+	p->p_pid = pid;
+
 	//create the filedescriptor table
 	err = fd_create( &p->p_fd );
 	if( err ) {
 		kfree( p );
+		proc_dealloc_pid( pid );
 		return err;
 	}
 
@@ -27,6 +120,7 @@ proc_create( struct proc **res ) {
 	if( p->p_lk == NULL ) {
 		fd_destroy( p->p_fd );
 		kfree( p );
+		proc_dealloc_pid( pid );
 		return ENOMEM;
 	}
 
@@ -36,6 +130,7 @@ proc_create( struct proc **res ) {
 		lock_destroy( p->p_lk );
 		fd_destroy( p->p_fd );
 		kfree( p );
+		proc_dealloc_pid( pid );
 		return ENOMEM;
 	}
 
@@ -65,4 +160,27 @@ proc_system_init( void ) {
 	lk_allproc = lock_create( "lk_allproc" );
 	if( lk_allproc == NULL ) 
 		panic( "could not initialize proc system." );
+
+	//set last pid to be 0.
+	next_pid = 0;
 }
+
+/** 
+ * stress tests.
+ */
+void
+proc_test_pid_allocation() {
+	pid_t 		pid;
+	int 		err;
+	int 		i;
+
+	for( i = 0; i < 100; ++i ) {
+		err = proc_alloc_pid( &pid );
+		if( err )
+			panic( "failed to allocate a pid. pid allocation is broken.\n" );
+		
+		kprintf( "awarded PID = %d\n", pid );
+		proc_dealloc_pid( pid );	
+	}
+}
+

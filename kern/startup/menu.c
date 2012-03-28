@@ -726,6 +726,9 @@ menu(char *args)
 	
 	//initialize the proc system
 	proc_system_init();
+	
+	//test the proc allocation mechanism.
+	//proc_test_pid_allocation();
 
 	while (1) {
 		kprintf("OS/161 kernel [? for menu]: ");
