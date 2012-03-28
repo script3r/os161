@@ -68,6 +68,7 @@ int	sys_write( int, userptr_t, size_t,  int * );
 int	sys_read( int, userptr_t, size_t, int * );
 int	sys___getcwd( userptr_t, size_t, int * );
 int	sys_lseek( int, off_t, int, int64_t * );
+int	sys_dup2( int, int, int * );
 
 
 #endif /* _SYSCALL_H_ */

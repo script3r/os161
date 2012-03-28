@@ -162,7 +162,11 @@ syscall(struct trapframe *tf)
 		//a 64-bit return value.
 		handle64 = true;
 		break;
-		
+
+	  case SYS_dup2:
+		err = sys_dup2( tf->tf_a0, tf->tf_a1, &retval );
+		break;
+
 	    /* Add stuff here */
  
 	    default:

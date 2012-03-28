@@ -17,6 +17,7 @@ int			fd_create( struct filedesc ** );
 void			fd_destroy( struct filedesc * );
 int			fd_attach( struct filedesc *, struct file *, int * );
 void			fd_detach( struct filedesc *, int );
+int			fd_attach_into( struct filedesc *, struct file *, int );
 
 #define FD_LOCK(x) (lock_acquire((x)->fd_lk))
 #define FD_UNLOCK(x) (lock_release((x)->fd_lk))

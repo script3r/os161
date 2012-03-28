@@ -101,3 +101,18 @@ file_get(struct proc *p, int fd, struct file **f ) {
 	FD_UNLOCK( p->p_fd );
 	return EBADF;
 }
+
+/**
+ * Checks whether the given file descriptor exists in the table.
+ */
+bool	
+file_descriptor_exists( struct proc *p, int fd ) {
+	bool 		exists = false;
+
+	FD_LOCK( p->p_fd );
+	if( p->p_fd->fd_ofiles[fd] != NULL )
+		exists = true;
+	FD_UNLOCK( p->p_fd );
+	
+	return exists;
+}

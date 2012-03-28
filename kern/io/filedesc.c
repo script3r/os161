@@ -67,3 +67,23 @@ fd_create( struct filedesc **fdesc ) {
 	*fdesc = fd;
 	return 0;
 }
+
+/**
+ * attaches a given filehandle inside a specific location
+ * on the filetable.
+ */
+int
+fd_attach_into( struct filedesc *fdesc, struct file *f, int fd ) {
+	FD_LOCK( fdesc );
+
+	//if the file-table already contains something
+	//inside the desired spot, we cannot continue.
+	if( fdesc->fd_ofiles[fd] != NULL ) {
+		FD_UNLOCK( fdesc );
+		return EMFILE;
+	}
+
+	fdesc->fd_ofiles[fd] = f;
+	FD_UNLOCK( fdesc );
+	return 0;
+}

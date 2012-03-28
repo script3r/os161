@@ -21,6 +21,7 @@ int		file_get(struct proc *, int, struct file ** );
 int		file_close_descriptor( struct proc *, int );
 int		file_close( struct proc *, struct file * );
 int		file_create( struct vnode *, int, struct file ** );
+bool		file_descriptor_exists( struct proc *, int );
 void		file_destroy( struct file * );
 
 //helper function to open() files from inside the kernel.
