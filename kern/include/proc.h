@@ -17,7 +17,7 @@ struct proc {
 
 	/* synchronization mechanisms */
 	struct lock		*p_lk;		/* lock to protect the structure */
-	struct cv		*p_cv;		/* cv to wait for our children to die */
+	struct semaphore	*p_sem;		/* sem used for wait/exit */
 
 	/* scheduler related */
 	uint64_t		p_nsyscalls;	/* how many system calls we called? */

@@ -137,9 +137,9 @@ proc_create( struct proc **res ) {
 		return ENOMEM;
 	}
 
-	//create the cv
-	p->p_cv = cv_create( "p_cv" );
-	if( p->p_cv == NULL ) {
+	//create the semaphore
+	p->p_sem = sem_create( "p_sem", 0 );
+	if( p->p_sem == NULL ) {
 		lock_destroy( p->p_lk );
 		fd_destroy( p->p_fd );
 		kfree( p );
@@ -172,7 +172,7 @@ proc_destroy( struct proc *p ) {
 	pid = p->p_pid;
 
 	//destroy the cv
-	cv_destroy( p->p_cv );
+	sem_destroy( p->p_sem );
 
 	//destroy the lock associated with it.
 	lock_destroy( p->p_lk );

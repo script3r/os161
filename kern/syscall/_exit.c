@@ -75,8 +75,8 @@ sys__exit( int code ) {
 		proc_destroy( p );
 	}
 	else {
-		//signal our parent that we are going to die.
-		cv_broadcast( p->p_proc->p_cv, p->p_lk );
+		//signal that we are done.
+		V( p->p_sem );
 		PROC_UNLOCK( p );
 	}
 	
