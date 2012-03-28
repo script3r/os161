@@ -372,6 +372,7 @@ file	  syscall/open.c
 file	  syscall/write.c
 file	  syscall/close.c
 file	  syscall/read.c
+file	  syscall/__getcwd.c
 
 #IO
 file	  io/file.c

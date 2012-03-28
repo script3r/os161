@@ -5,8 +5,30 @@
 #include <file.h>
 #include <filedesc.h>
 #include <copyinout.h>
+#include <kern/fcntl.h>
+#include <stat.h>
 #include <vfs.h>
 #include <current.h>
+
+//check to see if the given flags are valid.
+//valid flags consist of exactly one of O_RDONLY/O_WRONLY/O_RDWR.
+static
+bool
+valid_flags( int flags ) {
+	int		count = 0;
+	int		accmode = flags & O_ACCMODE;
+
+	if( accmode == O_RDWR )
+		++count;
+	
+	if( accmode == O_RDONLY )
+		++count;
+	
+	if( accmode == O_WRONLY )
+		++count;
+
+	return count == 1;
+}
 
 int 
 sys_open( userptr_t upath, int flags, int *retval ) {
@@ -15,6 +37,7 @@ sys_open( userptr_t upath, int flags, int *retval ) {
 	char			k_filename[MAX_FILE_NAME];
 	int			err;
 	struct proc 		*p;
+	struct stat		st;
 
 	//make sure the current thread is not null
 	//and that we have a process associated with it
@@ -22,6 +45,10 @@ sys_open( userptr_t upath, int flags, int *retval ) {
 	KASSERT( curthread->td_proc != NULL );
 
 	p = curthread->td_proc;
+
+	//check if we have valid flags
+	if( !valid_flags( flags ) )
+		return EINVAL;
 
 	//copy the path from userland into kernel-land
 	err = copyinstr( upath, k_filename, sizeof( k_filename ), NULL );
@@ -43,6 +70,19 @@ sys_open( userptr_t upath, int flags, int *retval ) {
 		return err;
 	}
 
+	//if we have O_APPEND, we must set the offset
+	//to be the file size.
+	if( flags & O_APPEND ) {
+		err = VOP_STAT( f->f_vnode, &st );
+		if( err ) {
+			vfs_close( vn );
+			file_destroy( f );
+			return err;
+		}
+		
+		f->f_offset = st.st_size;
+	}
+
 	//lock the file so we can safely modify
 	F_LOCK( f );
 
@@ -50,6 +90,7 @@ sys_open( userptr_t upath, int flags, int *retval ) {
 	//so we can store our new file
 	err = fd_attach( p->p_fd, f, retval );
 	if( err ) {
+		F_UNLOCK( f );
 		vfs_close( vn );
 		file_destroy( f );
 		return err;

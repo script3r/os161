@@ -19,6 +19,7 @@ file_create( struct vnode *vn, int flags, struct file **f ) {
 	res->f_oflags = flags;
 	res->f_refcount = 0;
 	res->f_vnode = vn;
+	res->f_offset = 0;
 
 	//attempt to create the lock
 	res->f_lk = lock_create( "f_lk" );
@@ -33,7 +34,7 @@ file_create( struct vnode *vn, int flags, struct file **f ) {
 
 /*
  * destroy the given file.
- * it must be locked. otherwise, lock_destroy will fail.
+ * otherwise, lock_destroy will fail.
  */
 void
 file_destroy( struct file *f ) {
@@ -44,7 +45,6 @@ file_destroy( struct file *f ) {
 	vfs_close( f->f_vnode );
 	
 	//release and destroy the lock
-	lock_release( f->f_lk );
 	lock_destroy( f->f_lk );
 
 	//free the memory
