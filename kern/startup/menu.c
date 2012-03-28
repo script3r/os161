@@ -39,6 +39,7 @@
 #include <vfs.h>
 #include <sfs.h>
 #include <syscall.h>
+#include <kern/fcntl.h>
 #include <test.h>
 #include <proc.h>
 #include <current.h>
@@ -67,6 +68,32 @@ getinterval(time_t s1, uint32_t ns1, time_t s2, uint32_t ns2,
 
 	*rns = ns2 - ns1;
 	*rs = s2 - s1;
+}
+
+//open the standard files.
+static
+void
+open_standard_files( struct proc *p ) {
+	int 		err = 0;
+	int		retval;
+	char		buf[32];
+
+	KASSERT( p != NULL );
+
+	strcpy( buf, "con:" );
+	err = ___open( p, buf, O_RDONLY, &retval );
+	if( err )
+		panic( "error opening stdin." );
+	
+	strcpy( buf, "con:" );
+	err = ___open( p, buf, O_WRONLY, &retval );
+	if( err )
+		panic( "error opening stdout." );
+	
+	strcpy( buf, "con:" );
+	err = ___open( p, buf, O_WRONLY, &retval );
+	if( err )
+		panic( "error opening stderr." );
 }
 
 ////////////////////////////////////////////////////////////
@@ -115,6 +142,12 @@ cmd_progthread(void *ptr, unsigned long nargs)
 	//attach the process to the current thread
 	curthread->td_proc = p;
 	
+	//open standard files
+	open_standard_files( p );
+
+	if( result )
+		panic( "could not open standard files." );
+
 	result = runprogram(progname);
 	if (result) {
 		kprintf("Running program %s failed: %s\n", args[0],

@@ -23,6 +23,9 @@ int		file_close( struct proc *, struct file * );
 int		file_create( struct vnode *, int, struct file ** );
 void		file_destroy( struct file * );
 
+//helper function to open() files from inside the kernel.
+int		___open( struct proc *, char *, int, int *);
+
 #define F_LOCK(x) (lock_acquire((x)->f_lk))
 #define F_UNLOCK(x) (lock_release((x)->f_lk))
 

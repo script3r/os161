@@ -30,36 +30,16 @@ valid_flags( int flags ) {
 	return count == 1;
 }
 
-int 
-sys_open( userptr_t upath, int flags, int *retval ) {
-	struct file		*f;
-	struct vnode		*vn;
-	char			k_filename[MAX_FILE_NAME];
+//kernel version of the open() systemcall.
+int
+___open( struct proc *p, char *path, int flags, int *retval ) {
+	struct vnode 		*vn = NULL;
 	int			err;
-	struct proc 		*p;
-	struct stat		st;
+	struct file		*f = NULL;
+	struct stat 		st;
 
-	//make sure the current thread is not null
-	//and that we have a process associated with it
-	KASSERT( curthread != NULL );
-	KASSERT( curthread->td_proc != NULL );
-
-	p = curthread->td_proc;
-
-	//check if we have valid flags
-	if( !valid_flags( flags ) )
-		return EINVAL;
-
-	//copy the path from userland into kernel-land
-	err = copyinstr( upath, k_filename, sizeof( k_filename ), NULL );
-	
-	//if we couldn't copy the file name, we probably have an I/O error
-	//simply return that error code
-	if( err )
-		return err;
-	
 	//attempt to open the file
-	err = vfs_open( k_filename, flags, 0, &vn );
+	err = vfs_open( path, flags, 0, &vn );
 	if( err )
 		return err;
 	
@@ -103,4 +83,34 @@ sys_open( userptr_t upath, int flags, int *retval ) {
 	//we are done if the file, unlock it
 	F_UNLOCK( f );
 	return 0;
+
+}
+
+int 
+sys_open( userptr_t upath, int flags, int *retval ) {
+	char			k_filename[MAX_FILE_NAME];
+	int			err;
+	struct proc 		*p;
+
+	//make sure the current thread is not null
+	//and that we have a process associated with it
+	KASSERT( curthread != NULL );
+	KASSERT( curthread->td_proc != NULL );
+
+	p = curthread->td_proc;
+
+	//check if we have valid flags
+	if( !valid_flags( flags ) )
+		return EINVAL;
+
+	//copy the path from userland into kernel-land
+	err = copyinstr( upath, k_filename, sizeof( k_filename ), NULL );
+	
+	//if we couldn't copy the file name, we probably have an I/O error
+	//simply return that error code
+	if( err )
+		return err;
+	
+	//delegate the actual opening to another function.
+	return  ___open( p, k_filename, flags, retval );
 }

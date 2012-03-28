@@ -56,7 +56,7 @@ sys_lseek( int fd, off_t offset, int whence, int64_t *retval ) {
 			}
 
 			//set the offet to the filesize.
-			f->f_offset = st.st_size;
+			f->f_offset = st.st_size + offset;
 			break;
 		default:
 			F_UNLOCK( f );
