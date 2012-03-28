@@ -8,6 +8,19 @@ struct lock 		*lk_allproc;
 int			next_pid;
 
 /**
+ * add the given function to the allproc array.
+ */
+static
+void
+proc_add_to_allproc( struct proc *p, int spot ) {
+	lock_acquire( lk_allproc );
+
+	KASSERT( allproc[spot] == (void *)PROC_RESERVED_SPOT );
+	allproc[spot] = p;
+	lock_release( lk_allproc );
+}
+
+/**
  * quick function that simply a spot as reserved,
  * stores the index of the spot inside the pid
  * and unlocks allproc.
@@ -139,9 +152,39 @@ proc_create( struct proc **res ) {
 	p->p_is_dead = false;
 	p->p_nsyscalls = 0;
 	p->p_nice = 0;
-	
+	p->p_proc = NULL;
+
+	//add to the list of allproc
+	proc_add_to_allproc( p, pid );
+
 	*res = p;
 	return 0;
+}
+
+/**
+ * destroy a given process.
+ */
+void
+proc_destroy( struct proc *p ) {
+	pid_t		pid;
+
+	//copy the pid for later used.
+	pid = p->p_pid;
+
+	//destroy the cv
+	cv_destroy( p->p_cv );
+
+	//destroy the lock associated with it.
+	lock_destroy( p->p_lk );
+
+	//destroy the filedescriptor table
+	fd_destroy( p->p_fd );
+
+	//free the memory.
+	kfree( p );
+
+	//deallocate the pid.
+	proc_dealloc_pid( pid );
 }
 
 /**
@@ -183,4 +226,6 @@ proc_test_pid_allocation() {
 		proc_dealloc_pid( pid );	
 	}
 }
+
+
 

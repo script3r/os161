@@ -16,6 +16,7 @@ fd_attach( struct filedesc *fdesc, struct file *f, int *fd ) {
 	for( i = 0; i < MAX_OPEN_FILES; ++i ) {
 		if( fdesc->fd_ofiles[i] == NULL ) {
 			fdesc->fd_ofiles[i] = f;
+			fdesc->fd_nfiles++;
 			*fd = i;
 			FD_UNLOCK( fdesc );
 			return 0;
@@ -30,6 +31,7 @@ void
 fd_detach( struct filedesc *fdesc, int fd ) {
 	FD_LOCK( fdesc );
 	fdesc->fd_ofiles[fd] = NULL;
+	fdesc->fd_nfiles--;
 	FD_UNLOCK( fdesc );
 }
 
@@ -63,6 +65,9 @@ fd_create( struct filedesc **fdesc ) {
 	for( i = 0; i < MAX_OPEN_FILES; ++i ) 
 		fd->fd_ofiles[i] = NULL;
 
+	//initially we have no open files.
+	fd->fd_nfiles = 0;
+
 	//we are good to go
 	*fdesc = fd;
 	return 0;
@@ -84,6 +89,8 @@ fd_attach_into( struct filedesc *fdesc, struct file *f, int fd ) {
 	}
 
 	fdesc->fd_ofiles[fd] = f;
+	fdesc->fd_nfiles++;
+
 	FD_UNLOCK( fdesc );
 	return 0;
 }

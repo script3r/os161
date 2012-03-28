@@ -51,7 +51,8 @@ sys_dup2( int oldfd, int newfd, int *retval ) {
 	
 	//increase the reference count.
 	f_old->f_refcount++;
-	
+	VOP_INCREF(f_old->f_vnode);
+
 	//unlock and return
 	F_UNLOCK( f_old );
 	*retval = newfd;

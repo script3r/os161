@@ -368,6 +368,7 @@ file      syscall/loadelf.c
 file      syscall/runprogram.c
 file      syscall/time_syscalls.c
 
+#IO SYSCALLS
 file	  syscall/open.c
 file	  syscall/write.c
 file	  syscall/close.c
@@ -376,6 +377,10 @@ file	  syscall/__getcwd.c
 file	  syscall/lseek.c
 file	  syscall/dup2.c
 file	  syscall/chdir.c
+
+#PROC SYSCALLS
+file	  syscall/getpid.c
+file	  syscall/_exit.c
 
 #IO
 file	  io/file.c

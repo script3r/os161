@@ -71,4 +71,11 @@ int	sys_lseek( int, off_t, int, int64_t * );
 int	sys_dup2( int, int, int * );
 int	sys_chdir( userptr_t );
 
+/**
+ * Process System Calls
+ */
+
+int	sys_getpid( int * );
+void	sys__exit( int );
+
 #endif /* _SYSCALL_H_ */

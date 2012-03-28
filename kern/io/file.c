@@ -75,6 +75,7 @@ file_close_descriptor( struct proc *p, int fd ) {
 
 	//destroy if we are the only ones using it
 	if( f->f_refcount == 0 ) {
+		F_UNLOCK( f );
 		file_destroy( f );
 		return 0;
 	}
@@ -115,4 +116,26 @@ file_descriptor_exists( struct proc *p, int fd ) {
 	FD_UNLOCK( p->p_fd );
 	
 	return exists;
+}
+
+/**
+ * close all open files associated with the given process.
+ */
+int
+file_close_all( struct proc *p ) {
+	int		i = 0;
+	int		err;
+
+	FD_LOCK( p->p_fd );
+	for( i = 0; i < MAX_OPEN_FILES; ++i ) {
+		if( p->p_fd->fd_ofiles[i] != NULL ) {
+			FD_UNLOCK( p->p_fd );
+			err = file_close_descriptor( p, i );
+			if( err )
+				return -1;
+			FD_LOCK( p->p_fd );
+		}
+	}
+	FD_UNLOCK( p->p_fd );
+	return 0;
 }

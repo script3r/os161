@@ -170,6 +170,14 @@ syscall(struct trapframe *tf)
 	  case SYS_chdir:
 		err = sys_chdir( (userptr_t)tf->tf_a0 );
 		break;
+	
+	  case SYS_getpid:	
+		err = sys_getpid( &retval );
+		break;
+	  case SYS__exit:
+		sys__exit( tf->tf_a0 );
+		err = 0;
+		break;
 
 	    /* Add stuff here */
  

@@ -23,6 +23,8 @@ int		file_close( struct proc *, struct file * );
 int		file_create( struct vnode *, int, struct file ** );
 bool		file_descriptor_exists( struct proc *, int );
 void		file_destroy( struct file * );
+int		file_close_all( struct proc * );
+
 
 //helper function to open() files from inside the kernel.
 int		___open( struct proc *, char *, int, int *);
