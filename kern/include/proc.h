@@ -28,9 +28,9 @@ extern struct proc *allproc[MAX_PROCESSES];
 extern struct lock *lk_allproc;
 
 int		proc_create( struct proc ** );
-struct proc * 	proc_clone(struct proc *);
+int	 	proc_clone(struct proc *, struct proc ** );
 void 		proc_destroy(struct proc *);
-struct proc * 	proc_get( pid_t );
+int	 	proc_get( pid_t, struct proc ** );
 void		proc_system_init(void);
 
 //tests.

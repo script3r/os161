@@ -60,6 +60,7 @@ sys__exit( int code ) {
 	//lock so we can adjust the return value.
 	PROC_LOCK( p );
 	p->p_retval = code;
+	p->p_is_dead = true;
 	PROC_UNLOCK( p );
 
 	//orphan our children.

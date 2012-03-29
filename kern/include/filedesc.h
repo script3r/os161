@@ -12,7 +12,7 @@ struct filedesc {
 	uint16_t		fd_nfiles;			/* how many open files we have */
 };
 
-struct filedesc *	fd_clone( struct filedesc * );
+void			fd_clone( struct filedesc *, struct filedesc * );
 int			fd_create( struct filedesc ** );
 void			fd_destroy( struct filedesc * );
 int			fd_attach( struct filedesc *, struct file *, int * );

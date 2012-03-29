@@ -381,6 +381,8 @@ file	  syscall/chdir.c
 #PROC SYSCALLS
 file	  syscall/getpid.c
 file	  syscall/_exit.c
+file	  syscall/waitpid.c
+file	  syscall/fork.c
 
 #IO
 file	  io/file.c

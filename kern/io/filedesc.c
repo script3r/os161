@@ -94,3 +94,41 @@ fd_attach_into( struct filedesc *fdesc, struct file *f, int fd ) {
 	FD_UNLOCK( fdesc );
 	return 0;
 }
+
+/**
+ * clone a filedescriptor table into another.
+ */
+void
+fd_clone( struct filedesc *source, struct filedesc *fdesc ) {
+	struct file		*f = NULL;
+	int			i = 0;
+
+	//lock the source file-descriptor table.
+	//and for each file, we copy its pointer into the new table.
+	FD_LOCK( source );
+	for( i = 0; i < MAX_OPEN_FILES; ++i ) {
+		if(  source->fd_ofiles[i] != NULL ) {
+			//lock the file for atomicity.
+			//this ensures nobody is writing things out while we are transfering.
+			f = source->fd_ofiles[i];
+			F_LOCK( f );
+			fdesc->fd_ofiles[i] = f;
+			fdesc->fd_nfiles++;
+
+			//at this point we also update the file's
+			//reference count.
+			f->f_refcount++;
+			VOP_INCREF( f->f_vnode );
+			
+			//we are done with it.
+			F_UNLOCK( f );
+		}
+	}
+
+	//for sakeness, both file-descriptor tables
+	//must have the same number of open files.
+	KASSERT( source->fd_nfiles == fdesc->fd_nfiles );
+	
+	//unlock.
+	FD_UNLOCK( source );
+}

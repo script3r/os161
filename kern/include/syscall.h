@@ -77,5 +77,7 @@ int	sys_chdir( userptr_t );
 
 int	sys_getpid( int * );
 void	sys__exit( int );
+int	sys_waitpid( int, userptr_t, int, int * );
+int	sys_fork( struct trapframe *, int * );
 
 #endif /* _SYSCALL_H_ */

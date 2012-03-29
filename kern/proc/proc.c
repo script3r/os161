@@ -162,6 +162,29 @@ proc_create( struct proc **res ) {
 }
 
 /**
+ * clone a process into a new process.
+ */
+int
+proc_clone( struct proc *source, struct proc **target ) {
+	struct proc		*p = NULL;
+	int			err;
+
+	//try to create the process.
+	err = proc_create( &p );
+	if( err )
+		return err;
+	
+	//clone all the files from the source file-descriptor table
+	//into the childs file-descriptor table.
+	fd_clone( source->p_fd, p->p_fd );
+	
+	//we are done, simply copy the new proc 
+	//into the given pointer.
+	*target = p;
+
+	return 0;
+}
+/**
  * destroy a given process.
  */
 void
@@ -208,6 +231,32 @@ proc_system_init( void ) {
 	next_pid = 0;
 }
 
+/**
+ * find a process inside allproc.
+ * if it exists, return it locked.
+ */
+int
+proc_get( pid_t pid, struct proc **res ) {
+	//invalid pid.
+	if( pid >= MAX_PROCESSES )
+		return ESRCH;
+
+	//lock allproc.
+	lock_acquire( lk_allproc );
+	
+	//if the requested pid is associated with a valid process
+	if( allproc[pid] != NULL && allproc[pid] != (void *)PROC_RESERVED_SPOT ) {
+		PROC_LOCK( allproc[pid] );
+		*res = allproc[pid];
+		lock_release( lk_allproc );
+		return 0;
+	}
+	
+	//the requested pid is actually invalid.
+	lock_release( lk_allproc );
+	return ESRCH;
+		
+}
 /** 
  * stress tests.
  */
@@ -226,6 +275,4 @@ proc_test_pid_allocation() {
 		proc_dealloc_pid( pid );	
 	}
 }
-
-
 
