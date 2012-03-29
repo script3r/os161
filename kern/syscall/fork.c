@@ -126,8 +126,17 @@ sys_fork( struct trapframe *tf, int *retval ) {
 	args->td_proc = p_new;
 
 	//copy the addresspace.
-	as_copy( curthread->t_addrspace, &args->as_source );
-
+	err = as_copy( curthread->t_addrspace, &args->as_source );
+	if( err ) {
+		//clean after ourselves.
+		kfree( args->tf );
+		kfree( args );
+		
+		file_close_all( p_new );
+		proc_destroy( p_new );
+		return err;
+	}
+	
 	//finalize the creation of the thread.
 	err = thread_fork(
 		curthread->t_name,
