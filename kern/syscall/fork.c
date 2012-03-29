@@ -105,7 +105,8 @@ sys_fork( struct trapframe *tf, int *retval ) {
 	
 	//clone the trapframe.
 	err = trapframe_clone( tf, &tf_new );
-	if( err ) {
+	if( err ) {	
+		file_close_all( p_new );
 		proc_destroy( p_new );
 		return err;
 	}
@@ -114,6 +115,7 @@ sys_fork( struct trapframe *tf, int *retval ) {
 	args = kmalloc( sizeof( struct child_fork_args ) );
 	if( args == NULL ) {
 		kfree( tf_new );
+		file_close_all( p_new );
 		proc_destroy( p_new );
 		return ENOMEM;
 	}
@@ -141,8 +143,10 @@ sys_fork( struct trapframe *tf, int *retval ) {
 		as_destroy( args->as_source );
 		kfree( args->tf );
 		kfree( args );
+
+		//close all possible files open by the proc.
+		file_close_all( p_new );
 		proc_destroy( p_new );
-		
 		return err;
 	}
 	

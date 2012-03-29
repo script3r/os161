@@ -39,7 +39,6 @@ fd_detach( struct filedesc *fdesc, int fd ) {
 void
 fd_destroy( struct filedesc *fdesc ) {
 	KASSERT( fdesc->fd_nfiles == 0 );
-
 	lock_destroy( fdesc->fd_lk );
 	kfree( fdesc );
 }

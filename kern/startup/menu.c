@@ -42,6 +42,7 @@
 #include <kern/fcntl.h>
 #include <test.h>
 #include <proc.h>
+#include <file.h>
 #include <current.h>
 
 #include "opt-synchprobs.h"
@@ -150,6 +151,11 @@ cmd_progthread(void *ptr, unsigned long nargs)
 
 	result = runprogram(progname);
 	if (result) {
+		//make sure we close the files we previously opened.
+		//that way we know we are not leaking stuff.
+		file_close_all( p );
+		proc_destroy( p );
+
 		kprintf("Running program %s failed: %s\n", args[0],
 			strerror(result));
 		return;

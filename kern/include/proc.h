@@ -5,7 +5,7 @@
 #include <filedesc.h>
 #include <synch.h>
 
-#define MAX_PROCESSES 32
+#define MAX_PROCESSES 64
 #define PROC_RESERVED_SPOT 0xcafebabe
 
 struct proc {
