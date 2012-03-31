@@ -238,7 +238,7 @@ proc_system_init( void ) {
 int
 proc_get( pid_t pid, struct proc **res ) {
 	//invalid pid.
-	if( pid >= MAX_PROCESSES )
+	if( pid >= MAX_PROCESSES || pid < 0 )
 		return ESRCH;
 
 	//lock allproc.

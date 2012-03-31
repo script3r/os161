@@ -22,7 +22,7 @@ sys_lseek( int fd, off_t offset, int whence, int64_t *retval ) {
 	KASSERT( curthread->td_proc != NULL );
 
 	p = curthread->td_proc;
-
+	
 	//try to open the file
 	err = file_get( p, fd, &f );
 	if( err )

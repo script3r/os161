@@ -92,6 +92,9 @@ file_close_descriptor( struct proc *p, int fd ) {
  */
 int		
 file_get(struct proc *p, int fd, struct file **f ) {
+	if( fd >= MAX_OPEN_FILES || fd < 0 )
+		return EBADF;
+
 	FD_LOCK( p->p_fd );
 	if( p->p_fd->fd_ofiles[fd] != NULL ) { 
 		*f = p->p_fd->fd_ofiles[fd];

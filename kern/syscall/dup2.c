@@ -19,7 +19,7 @@ sys_dup2( int oldfd, int newfd, int *retval ) {
 	p = curthread->td_proc;
 	
 	//make sure both file handles are valid
-	if( oldfd < 0 || newfd < 0 )
+	if( (oldfd < 0 || newfd < 0) || (newfd >= MAX_OPEN_FILES) )
 		return EBADF;
 
 	//get the old file

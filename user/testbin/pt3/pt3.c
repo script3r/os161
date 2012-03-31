@@ -15,7 +15,7 @@ int main( int argc, char *argv[] ) {
 	if( pid == 0 ) {
 		printf( "Hi. I'm the child. My PID is: %d\n", getpid() );
 		printf( "I'm about to call exec ....\n" );
-		res = execv( "pt1", (char **)args );
+		res = execv( "/testbin/pt1", (char **)args );
 		if( res ) {
 			printf( "execv failed." );
 			return -1;
