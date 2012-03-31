@@ -39,6 +39,7 @@ fork_child_return( void *v_args, unsigned long not_used ) {
 	
 	//the return value of fork() for the child is 0.
 	args->tf->tf_v0 = 0;
+	args->tf->tf_a3 = 0;
 
 	//skip to the next instruction to avoid fork()ing again.
 	args->tf->tf_epc += 4;
