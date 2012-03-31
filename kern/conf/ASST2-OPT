@@ -3,7 +3,7 @@
 
 include conf/conf.kern		# get definitions of available options
 
-debug				# Optimizing compile (no debug).
+#debug				# Optimizing compile (no debug).
 options noasserts		# Disable assertions.
 
 #
