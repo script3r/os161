@@ -10,7 +10,7 @@ int main( int argc, char *argv[] ) {
 	(void) argv;
 
 	printf( "about to call execv\n" );
-	execv( "/testbin/ft1", (char **)args );
+	execv( "/testbin/pt5", (char **)args );
 
 	return 0;
 }
