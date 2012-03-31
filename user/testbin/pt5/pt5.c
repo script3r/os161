@@ -4,10 +4,13 @@
 #include <stdlib.h>
 
 int main( int argc, char *argv[] ) {
-	printf( "got %d arguments\n", argc );
-	printf( "the address of argv is: %p\n", argv );
-	printf( "the address of argv[0] is: %p", argv[0] );
-	printf( "the first argument is: %s\n", argv[0] );
+	int		i;
 
+	printf( "\ngot %d arguments\n", argc );
+	printf( "the address of argv is: %p\n", argv );
+	
+	for( i = 0; i < argc; ++i )
+		printf( "argv[%d] = %s\n", i, argv[i] );
+	
 	return 0;
 }

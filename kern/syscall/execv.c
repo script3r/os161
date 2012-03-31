@@ -78,6 +78,7 @@ copy_args( userptr_t uargs, int *nargs, int *buflen ) {
 	unsigned char	*p_begin = NULL;
 	unsigned char	*p_end = NULL;
 	uint32_t	offset;
+	uint32_t	last_offset;
 
 	//initialize the numbe of arguments and the buffer size
 	*nargs = 0;
@@ -107,6 +108,7 @@ copy_args( userptr_t uargs, int *nargs, int *buflen ) {
 	p_begin = kargbuf;
 	p_end = kargbuf + (*nargs * sizeof( char * ));
 	nlast = 0;
+	last_offset = *nargs * sizeof( char * );
 	while( ( err = copyin( (userptr_t)uargs + i * 4, &ptr, sizeof( ptr ) ) ) == 0 ) {
 		if( ptr == NULL )
 			break;
@@ -114,7 +116,7 @@ copy_args( userptr_t uargs, int *nargs, int *buflen ) {
 		if( err )
 			return err;
 		
-		offset = *nargs * sizeof( char * ) + nlast;
+		offset = last_offset + nlast;
 		nlast = align_arg( karg, 4 );
 
 		//copy the integer into 4 bytes.
@@ -129,6 +131,9 @@ copy_args( userptr_t uargs, int *nargs, int *buflen ) {
 
 		//advance p_begin by 4 bytes.
 		p_begin += 4;
+
+		//adjust last offset
+		last_offset = offset;
 		++i;
 	}
 	
