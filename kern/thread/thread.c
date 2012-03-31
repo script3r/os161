@@ -891,11 +891,14 @@ schedule(void)
 	}
 
 	//remove t_max from the runqueue.
-	threadlist_remove( &cpu->c_runqueue, t_max );
+	if( t_max != NULL ) {
+		threadlist_remove( &cpu->c_runqueue, t_max );
 	
-	//add it to the head.
-	threadlist_addhead( &cpu->c_runqueue, t_max );
+		//add it to the head.
+		threadlist_addhead( &cpu->c_runqueue, t_max );
+	}
 	
+	KASSERT( t_max->t_state == S_READY );
 	//release the lock
 	spinlock_release( &cpu->c_runqueue_lock );
 	
