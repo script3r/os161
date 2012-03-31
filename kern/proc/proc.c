@@ -5,6 +5,7 @@
 
 struct proc 		*allproc[MAX_PROCESSES];
 struct lock 		*lk_allproc;
+struct lock		*lk_exec;
 int			next_pid;
 
 /**
@@ -227,6 +228,12 @@ proc_system_init( void ) {
 	if( lk_allproc == NULL ) 
 		panic( "could not initialize proc system." );
 
+	//create the lock protecting exec args
+	lk_exec = lock_create( "lk_exec" );
+	if( lk_exec == NULL ) {
+		lock_destroy( lk_allproc );
+		panic( "could not create lk_exec." );
+	}
 	//set last pid to be 0.
 	next_pid = 0;
 }
@@ -238,8 +245,8 @@ proc_system_init( void ) {
 int
 proc_get( pid_t pid, struct proc **res ) {
 	//invalid pid.
-	if( pid >= MAX_PROCESSES || pid < 0 )
-		return ESRCH;
+	if( pid >= MAX_PROCESSES || pid <= 0 )
+		return EINVAL;
 
 	//lock allproc.
 	lock_acquire( lk_allproc );

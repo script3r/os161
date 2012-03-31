@@ -26,6 +26,7 @@ struct proc {
 
 extern struct proc *allproc[MAX_PROCESSES];
 extern struct lock *lk_allproc;
+extern struct lock *lk_exec;
 
 int		proc_create( struct proc ** );
 int	 	proc_clone(struct proc *, struct proc ** );

@@ -80,6 +80,10 @@ copy_args( userptr_t uargs, int *nargs, int *buflen ) {
 	uint32_t	offset;
 	uint32_t	last_offset;
 
+	//check whether we got a valid pointer.
+	if( uargs == NULL )
+		return EFAULT;
+
 	//initialize the numbe of arguments and the buffer size
 	*nargs = 0;
 	*buflen = 0;
@@ -90,13 +94,19 @@ copy_args( userptr_t uargs, int *nargs, int *buflen ) {
 		if( ptr == NULL )
 			break;
 		err = copyinstr( (userptr_t)ptr, karg, sizeof( karg ), NULL );
-		if( err )
+		if( err ) 
 			return err;
+		
 		++i;
 		*nargs += 1;
 		karglen[i] = get_aligned_length( karg, 4 );
 		*buflen += karglen[i] + sizeof( char * );
 	}
+
+	//if there is a problem, and we haven't read a single argument
+	//that means the given user argument pointer is invalid.
+	if( i == 0 && err )
+		return err;
 	
 	//account for NULL also.
 	*nargs += 1;
@@ -113,7 +123,7 @@ copy_args( userptr_t uargs, int *nargs, int *buflen ) {
 		if( ptr == NULL )
 			break;
 		err = copyinstr( (userptr_t)ptr, karg, sizeof( karg ), NULL );
-		if( err )
+		if( err ) 
 			return err;
 		
 		offset = last_offset + nlast;
@@ -142,7 +152,7 @@ copy_args( userptr_t uargs, int *nargs, int *buflen ) {
 	*(p_begin+1) = 0;
 	*(p_begin+2) = 0;
 	*(p_begin+3) = 0;
-
+	
 	return 0;
 }
 
@@ -195,23 +205,31 @@ sys_execv( userptr_t upname, userptr_t uargs ) {
 	KASSERT( curthread->td_proc != NULL );
 	
 	(void)uargs;
+	
+	//lock the execv args
+	lock_acquire( lk_exec );
 
 	//copy the old addrspace just in case.
 	as_old = curthread->t_addrspace;
 
 	//copyin the program name.
 	err = copyinstr( upname, kpname, sizeof( kpname ), NULL );
-	if( err )
+	if( err ) {
+		lock_release( lk_exec );
 		return err;
+	}
 	
 	//try to open the given executable.
 	err = vfs_open( kpname, O_RDONLY, 0, &vn );
-	if( err )
+	if( err ) {
+		lock_release( lk_exec );
 		return err;
+	}
 
 	//copy the arguments into the kernel buffer.
 	err = copy_args( uargs, &nargs, &buflen );
 	if( err ) {
+		lock_release( lk_exec );
 		vfs_close( vn );
 		return err;
 	}
@@ -219,6 +237,7 @@ sys_execv( userptr_t upname, userptr_t uargs ) {
 	//create the new addrspace.
 	as_new = as_create();
 	if( as_new == NULL ) {
+		lock_release( lk_exec );
 		vfs_close( vn );
 		return ENOMEM;
 	}
@@ -235,6 +254,7 @@ sys_execv( userptr_t upname, userptr_t uargs ) {
 		curthread->t_addrspace = as_old;
 		as_destroy( as_new );
 		vfs_close( vn );
+		lock_release( lk_exec );
 		return err;
 	}
 
@@ -244,6 +264,7 @@ sys_execv( userptr_t upname, userptr_t uargs ) {
 		curthread->t_addrspace = as_old;
 		as_destroy( as_new );
 		vfs_close( vn );
+		lock_release( lk_exec );
 		return err;
 	}
 	
@@ -254,6 +275,7 @@ sys_execv( userptr_t upname, userptr_t uargs ) {
 		curthread->t_addrspace = as_old;
 		as_destroy( as_new );
 		vfs_close( vn );
+		lock_release( lk_exec );
 		return err;
 	}
 
@@ -263,8 +285,12 @@ sys_execv( userptr_t upname, userptr_t uargs ) {
 		curthread->t_addrspace = as_old;
 		as_destroy( as_new );
 		vfs_close( vn );
+		lock_release( lk_exec );
 		return err;
 	}
+
+	//reelase lk_exec
+	lock_release( lk_exec );
 
 	//no need for it anymore.
 	vfs_close( vn );

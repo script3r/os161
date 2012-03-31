@@ -64,12 +64,6 @@ exec_common_fork(void)
 		return -1;
 	}
 	
-	printf( 
-		"The child exit code was: %d, expected %d\n", 
-		WEXITSTATUS( status ), 
-		MAGIC_STATUS 
-	);
-
 	if (!WIFEXITED(status) || WEXITSTATUS(status) != MAGIC_STATUS) {
 		warnx("FAILURE: wrong exit code of subprocess");
 	}
