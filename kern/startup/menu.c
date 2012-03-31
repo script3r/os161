@@ -49,6 +49,13 @@
 #include "opt-sfs.h"
 #include "opt-net.h"
 
+struct	proc		*p0;
+
+struct cmd_progthread_args {
+	char		**args;
+	struct proc	*p;
+};
+
 /*
  * In-kernel menu and command dispatcher.
  */
@@ -73,7 +80,7 @@ getinterval(time_t s1, uint32_t ns1, time_t s2, uint32_t ns2,
 
 //open the standard files.
 static
-void
+int
 open_standard_files( struct proc *p ) {
 	int 		err = 0;
 	int		retval;
@@ -84,18 +91,26 @@ open_standard_files( struct proc *p ) {
 	strcpy( buf, "con:" );
 	err = ___open( p, buf, O_RDONLY, &retval );
 	if( err )
-		panic( "error opening stdin." );
+		return err;
 	
 	strcpy( buf, "con:" );
 	err = ___open( p, buf, O_WRONLY, &retval );
-	if( err )
-		panic( "error opening stdout." );
+	if( err ) {
+		file_close_all( p );
+		return err;
+	}
 	
 	strcpy( buf, "con:" );
 	err = ___open( p, buf, O_WRONLY, &retval );
-	if( err )
-		panic( "error opening stderr." );
+	if( err ) {
+		file_close_all( p );
+		return err;
+	}
+
+	return 0;
 }
+
+
 
 ////////////////////////////////////////////////////////////
 //
@@ -116,13 +131,10 @@ static
 void
 cmd_progthread(void *ptr, unsigned long nargs)
 {
-	char **args = ptr;
+	struct cmd_progthread_args *cargs = ptr;
+	char **args = cargs->args;
 	char progname[128];
 	int result;
-	
-	//we are going to use this process
-	//to wrap around the thread
-	struct proc	*p = NULL;
 	
 	KASSERT(nargs >= 1);
 
@@ -135,29 +147,19 @@ cmd_progthread(void *ptr, unsigned long nargs)
 
 	strcpy(progname, args[0]);
 	
-	//create the process
-	result = proc_create( &p );
-	if( result ) 
-		panic( "could not create proc1." );
-	
 	//attach the process to the current thread
-	curthread->td_proc = p;
+	curthread->td_proc = cargs->p;
 	
-	//open standard files
-	open_standard_files( p );
-
-	if( result )
-		panic( "could not open standard files." );
+	//destroy the cargs struct
+	kfree( cargs );
 
 	result = runprogram(progname);
 	if (result) {
-		//make sure we close the files we previously opened.
-		//that way we know we are not leaking stuff.
-		file_close_all( p );
-		proc_destroy( p );
-
 		kprintf("Running program %s failed: %s\n", args[0],
 			strerror(result));
+
+		//exit with a failure.
+		sys__exit( -1 );
 		return;
 	}
 
@@ -181,20 +183,61 @@ int
 common_prog(int nargs, char **args)
 {
 	int result;
+	struct proc			*p = NULL;
+	struct cmd_progthread_args 	*cargs = NULL;
+	pid_t				pid;
+	int				err;
 
 #if OPT_SYNCHPROBS
 	kprintf("Warning: this probably won't work with a "
 		"synchronization-problems kernel.\n");
 #endif
+	
+	//attempt to create the first process.
+	result = proc_create( &p );
+	if( result ) {
+		kprintf( "common_prog: failed creating the first process." );
+		return result;
+	}
+
+	//store the pid.
+	pid = p->p_pid;
+	
+	//open the standard files.
+	err = open_standard_files( p );
+	if( err ) {
+		proc_destroy( p );
+		return err;
+	}
+	
+	//create the arguments
+	cargs = kmalloc( sizeof( struct cmd_progthread_args ) );
+	if( cargs == NULL ) {
+		file_close_all( p );
+		proc_destroy( p );
+		return ENOMEM;
+	}
+
+	//adjust the parent to reflect p0.
+	p->p_proc = p0;
+
+	cargs->args = args;
+	cargs->p = p;
 
 	result = thread_fork(args[0] /* thread name */,
 			cmd_progthread /* thread function */,
-			args /* thread arg */, nargs /* thread arg */,
+			cargs /* thread arg */, nargs /* thread arg */,
 			NULL);
 	if (result) {
 		kprintf("thread_fork failed: %s\n", strerror(result));
+	
+		file_close_all( p );
+		proc_destroy( p );
 		return result;
 	}
+
+	//wait for our chid to die.
+	___waitpid( pid, &result, 0 );
 
 	return 0;
 }
@@ -706,6 +749,32 @@ menu_execute(char *line, int isargs)
 	}
 }
 
+static
+int
+proc0( struct proc **p0 ) {
+	struct proc	*p = NULL;
+	int		err;
+
+	//create the new process.
+	err = proc_create( &p );
+	if( err )
+		return err;
+
+	//open the standard files.
+	err = open_standard_files( p );
+	if( err ) {
+		proc_destroy( p );
+		return err;
+	}
+
+	//associate it with the current thread.
+	curthread->td_proc = p;
+
+	//we are good to go.
+	*p0 = p;
+	return 0;
+}
+	
 /*
  * Command menu main loop.
  *
@@ -727,12 +796,18 @@ void
 menu(char *args)
 {
 	char buf[64];
+	int err;
 
 	menu_execute(args, 1);
 	
 	//initialize the proc system
 	proc_system_init();
 	
+	//kickstart proc0.
+	err = proc0( &p0 );
+	if( err )
+		panic( "failed creating proc0." );
+
 	//test the proc allocation mechanism.
 	//proc_test_pid_allocation();
 
