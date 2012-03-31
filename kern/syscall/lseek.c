@@ -17,6 +17,7 @@ sys_lseek( int fd, off_t offset, int whence, int64_t *retval ) {
 	struct file		*f = NULL;
 	int			err;
 	struct stat		st;
+	off_t			new_offset;
 
 	KASSERT( curthread != NULL );
 	KASSERT( curthread->td_proc != NULL );
@@ -27,23 +28,15 @@ sys_lseek( int fd, off_t offset, int whence, int64_t *retval ) {
 	err = file_get( p, fd, &f );
 	if( err )
 		return err;
-
-	//use VOP_TRYSEEK to verify whether the desired
-	//seeking location is proper.
-	err = VOP_TRYSEEK( f->f_vnode, offset );
-	if( err ) {
-		F_UNLOCK( f );
-		return err;
-	}
 	
 	//depending on whence, seek to appropriate location
 	switch( whence ) {
 		case SEEK_SET:
-			f->f_offset = offset;
+			new_offset = offset;
 			break;
 		
 		case SEEK_CUR:
-			f->f_offset += offset;
+			new_offset = f->f_offset + offset;
 			break;
 
 		case SEEK_END:
@@ -56,14 +49,24 @@ sys_lseek( int fd, off_t offset, int whence, int64_t *retval ) {
 			}
 
 			//set the offet to the filesize.
-			f->f_offset = st.st_size + offset;
+			new_offset = st.st_size + offset;
 			break;
 		default:
 			F_UNLOCK( f );
 			return EINVAL;
 	}
+
+	//use VOP_TRYSEEK to verify whether the desired
+	//seeking location is proper.
+	err = VOP_TRYSEEK( f->f_vnode, new_offset );
+	if( err ) {
+		F_UNLOCK( f );
+		return err;
+	}
 	
-	*retval = f->f_offset;
+	//adjust the seek.
+	f->f_offset = new_offset;
+	*retval = new_offset;
 	F_UNLOCK( f );
 	return 0;
 }	
