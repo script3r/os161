@@ -107,6 +107,10 @@ syscall(struct trapframe *tf)
 
 	retval = 0;
 	handle64 = false;
+	
+	//award points for the process that just called the systemcall.
+	curthread->td_proc->p_nsyscalls++;
+
 	switch (callno) {
 	    case SYS_reboot:
 		err = sys_reboot(tf->tf_a0);
