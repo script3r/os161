@@ -20,7 +20,6 @@
 
 static char		karg[ARG_MAX];
 static unsigned char	kargbuf[ARG_MAX];
-static int		karglen[NARG_MAX];
 
 #define MAX_PROG_NAME 32
 
@@ -99,8 +98,7 @@ copy_args( userptr_t uargs, int *nargs, int *buflen ) {
 		
 		++i;
 		*nargs += 1;
-		karglen[i] = get_aligned_length( karg, 4 );
-		*buflen += karglen[i] + sizeof( char * );
+		*buflen += get_aligned_length( karg, 4 ) + sizeof( char * );
 	}
 
 	//if there is a problem, and we haven't read a single argument
@@ -158,7 +156,7 @@ copy_args( userptr_t uargs, int *nargs, int *buflen ) {
 
 static
 int
-adjust_kargbuf( int nparams, vaddr_t stack_ptr, uint32_t *argv_addr ) {
+adjust_kargbuf( int nparams, vaddr_t stack_ptr ) {
 	int 		i;
 	uint32_t	new_offset = 0;
 	uint32_t	old_offset = 0;
@@ -173,16 +171,8 @@ adjust_kargbuf( int nparams, vaddr_t stack_ptr, uint32_t *argv_addr ) {
 		//calculate the new offset
 		new_offset = stack_ptr + old_offset;
 		
-		if( i == 0 )
-			*argv_addr = new_offset;
-
 		//store it instead of the old one.
 		memcpy( kargbuf + index, &new_offset, sizeof( int ) );
-	
-		//kargbuf[index]   = new_offset & 0xff;
-		//kargbuf[index+1] = (new_offset >> 8) & 0xff;
-		//kargbuf[index+2]  = (new_offset >> 16) & 0xff;
-		//kargbuf[index+3] = (new_offset >> 24) & 0xff;
 	}
 
 	return 0;
@@ -199,7 +189,6 @@ sys_execv( userptr_t upname, userptr_t uargs ) {
 	char				kpname[MAX_PROG_NAME];
 	int				nargs;
 	int				buflen;
-	uint32_t			argv_addr;
 
 	KASSERT( curthread != NULL );
 	KASSERT( curthread->td_proc != NULL );
@@ -270,7 +259,7 @@ sys_execv( userptr_t upname, userptr_t uargs ) {
 	
 	//adjust the stackptr to reflect the change
 	stack_ptr -= buflen;
-	err = adjust_kargbuf( nargs, stack_ptr, &argv_addr );
+	err = adjust_kargbuf( nargs, stack_ptr );
 	if( err ) {
 		curthread->t_addrspace = as_old;
 		as_destroy( as_new );
