@@ -49,10 +49,6 @@ as_create(void)
 		return NULL;
 	}
 
-	/*
-	 * Initialize as needed.
-	 */
-
 	return as;
 }
 
