@@ -330,6 +330,9 @@ file      thread/threadlist.c
 #
 
 file      vm/kmalloc.c
+file	  vm/swap.c
+file      vm/vmregion.c
+file      vm/vmpage.c
 
 optofffile dumbvm   vm/addrspace.c
 

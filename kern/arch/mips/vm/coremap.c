@@ -100,23 +100,76 @@ coremap_bootstrap( void ) {
 static
 bool
 coremap_is_free( int ix ) {
-	
 	return !coremap[ix].cme_wired && 
 	       !coremap[ix].cme_alloc && 
                !coremap[ix].cme_desired;
 }
 
-
 static
-int
-find_optimal_range( int npages ) {
-	(void)npages;
-	return -1;
+bool
+coremap_is_pageable( int ix ) {
+	return !coremap[ix].cme_wired &&
+	       !coremap[ix].cme_desired &&
+	       !coremap[ix].cme_kernel;
 }
 
 static
 int
-do_page_replace( void ) {
+rank_region_for_paging( int ix, int size ) {
+	int 		score;
+	int		i;
+
+	score = 0;
+	for( i = ix; i < ix + size; ++i ) {
+		if( !coremap_is_pageable( i ) )
+			return -1;
+		
+		if( coremap_is_free( i ) )
+			++score;
+	}
+		
+	return score;
+}
+
+/**
+ * finds an optimal range inside the coremap
+ * to allocate npages. the optimal range is one that requires the least amount of evictions.
+ */
+static
+int
+find_optimal_range( int npages ) {
+	int 		best_base;
+	int		best_count;
+	int		curr_count;
+	uint32_t	i;
+
+	best_count = -1;
+	best_base = -1;
+	
+	for( i = 0; i < cm_stats.cms_total_frames - npages; ++i ) {
+		curr_count = rank_region_for_paging( i, npages );
+		if( curr_count > best_count ) {
+			best_base = i;
+			best_count = curr_count;
+		}
+	}
+
+	return best_base;
+}
+
+/**
+ * finds a page that could be paged-out.
+ */
+static
+int
+find_pageable_page( void ) {
+	uint32_t	i;
+
+	for( i = 0; i < cm_stats.cms_total_frames; ++i )
+		if( coremap_is_pageable( i ) )
+			return i;
+
+	panic( "find_pageable_page: no pageable pages were found." );
 	return -1;
 }
 
@@ -124,6 +177,22 @@ static
 void
 do_evict( int ix ) {
 	(void)ix;
+}
+
+
+static
+int
+do_page_replace( void ) {
+	int		ix;
+
+	//find a page that we could evict.
+	ix = find_pageable_page();
+	
+	//if we need to evict it ... then do it.
+	if( !coremap_is_free( ix ) ) 
+		do_evict( ix );
+	
+	return ix;
 }
 
 static
