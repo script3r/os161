@@ -334,12 +334,18 @@ coremap_alloc_multipages( int npages ) {
 	return COREMAP_TO_PADDR( ix );
 }
 
+static
+void
+tlb_invalidate_coremap_entry( int ix ) {
+
+}
+
 /**
  * allocate kernel pages
  */
 vaddr_t
 alloc_kpages( int npages ) {
-	paddr_t		paddr;		/* the physical addr of the allocated page */
+	paddr_t		paddr;		//the physical addr of the allocated page
 	
 	//if we have multiple allocation requests, then call the multi-version.
 	//otherwise, simply allocate a single page.
@@ -354,4 +360,54 @@ alloc_kpages( int npages ) {
 	return PADDR_TO_KVADDR( paddr );
 }
 
+/**
+ * free a series of pages.
+ */
+void
+free_kpages( vaddr_t vaddr ) {
+	coremap_free( KVADDR_TO_PADDR( vaddr ), true );
+}
 
+/**
+ * free a kernel coremap allocation.
+ */
+void
+coremap_free( paddr_t paddr, bool is_kernel ) {
+	uint32_t		i;
+	uint32_t		ix;
+
+	//convert the given physical address into the appropriate
+	//physical frame.
+	ix = PADDR_TO_COREMAP( paddr );
+	
+	//lock the coremap for atomicity.
+	LOCK_COREMAP();
+
+	//we loop over starting from ix, until possibly the end.
+	for( i = ix; i < cm_stats.cms_total_frames; ++i ) {
+		//make sure the page is actually allocated.
+		//further, make sure it is wired or is a kernel page.
+		KASSERT( coremap[i].cme_alloc == 1 );
+		KASSERT( coremap[i].cme_wired || is_kernel );
+		
+		//invalidate the given c
+		tlb_invalidate_coremap_entry( i );
+
+		//mark it as deallocated and update stats.
+		coremap[i].cme_alloc = 0;
+		coremap[i].cme_kernel ? --cm_stats.cms_kpages : --cm_stats.cms_upages;
+		coremap[i].cme_referenced = 0;
+		coremap[i].cme_page = NULL;
+	
+		//one extra free page.
+		++cm_stats.cms_free;
+	
+		//if we are the last in a series of allocations, bail.
+		if( coremap[i].cme_last ) {
+			coremap[i].cme_last = 0;
+			break;
+		}
+	}
+
+	UNLOCK_COREMAP();
+}

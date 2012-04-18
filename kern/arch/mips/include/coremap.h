@@ -33,7 +33,7 @@ void			coremap_unwire( paddr_t );
 void			coremap_zero( paddr_t );
 void			coremap_clone( paddr_t, paddr_t );
 paddr_t			coremap_alloc( struct vm_page *, int );
-void			coremap_free( paddr_t );
+void			coremap_free( paddr_t, bool );
 void			mark_pages_as_allocated( int, int, bool, bool);
 
 extern struct coremap_entry		*coremap;
