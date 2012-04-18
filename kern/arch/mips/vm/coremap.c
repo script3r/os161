@@ -14,6 +14,8 @@ struct coremap_entry		*coremap;
 struct wchan			*wc_wire;
 struct wchan			*wc_shootdown;
 struct spinlock			slk_coremap = SPINLOCK_INITIALIZER;
+bool				coremap_initialized = false;
+extern struct spinlock		slk_steal;
 
 /**
  * initialize the statistics given the first and last physical addresses
@@ -61,6 +63,8 @@ coremap_bootstrap( void ) {
 	size_t			nsize;		//size of coremap
 	uint32_t		i;		
 	
+	ram_getsize( &first, &last );
+
 	//the number of frames we have to manage.
 	nframes = (last - first) / PAGE_SIZE;
 	
@@ -95,6 +99,8 @@ coremap_bootstrap( void ) {
 	wc_shootdown = wchan_create( "wc_shootdown" );
 	if( wc_shootdown == NULL )
 		panic( "coremap_bootstrap: could not create wc_shootdown" );
+	
+	coremap_initialized = true;
 }
 
 /**
@@ -403,6 +409,22 @@ tlb_invalidate_coremap_entry( int ix ) {
 	tlb_invalidate( coremap[ix].cme_tlb_ix );
 }
 
+
+static
+paddr_t
+get_kpages_by_stealing( int npages ) {
+	paddr_t			paddr;
+
+	KASSERT( !coremap_initialized );
+	
+	spinlock_acquire( &slk_steal );
+	paddr = ram_stealmem( npages );
+	spinlock_release( &slk_steal );
+
+	return paddr;
+
+}
+	
 /**
  * allocate kernel pages
  */
@@ -410,6 +432,9 @@ vaddr_t
 alloc_kpages( int npages ) {
 	paddr_t		paddr;		//the physical addr of the allocated page
 	
+	if( !coremap_initialized )
+		return PADDR_TO_KVADDR( get_kpages_by_stealing( npages ) );
+
 	//if we have multiple allocation requests, then call the multi-version.
 	//otherwise, simply allocate a single page.
 	( npages > 1 ) ? 

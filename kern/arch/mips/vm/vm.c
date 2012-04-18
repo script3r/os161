@@ -9,6 +9,8 @@
 #include <addrspace.h>
 
 struct lock 			*giant_paging_lock;
+struct spinlock			slk_steal = SPINLOCK_INITIALIZER;
+
 /**
  * kickstart the virtual memory system.
  * we simply initialize our coremap structure.
