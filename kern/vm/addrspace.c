@@ -32,12 +32,16 @@
 #include <lib.h>
 #include <addrspace.h>
 #include <vm.h>
+#include <vm/region.h>
+#include <array.h>
 
 /*
  * Note! If OPT_DUMBVM is set, as is the case until you start the VM
  * assignment, this file is not compiled or linked or in any way
  * used. The cheesy hack versions in dumbvm.c are used instead.
  */
+
+DEFARRAY_BYTYPE( vm_region_array ,struct vm_region, /* ... */);
 
 struct addrspace *
 as_create(void)
@@ -46,6 +50,13 @@ as_create(void)
 
 	as = kmalloc(sizeof(struct addrspace));
 	if (as == NULL) {
+		return NULL;
+	}
+
+	//create the array of regions.
+	as->as_vm_regions = vm_region_array_create();
+	if( as->as_vm_regions == NULL ) {
+		kfree( as );
 		return NULL;
 	}
 
@@ -156,3 +167,11 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 	return 0;
 }
 
+int
+as_fault( struct addrspace *as, int fault_type, vaddr_t fault_addr ) {
+	(void)as;
+	(void)fault_type;
+	(void)fault_addr;
+
+	return EFAULT;
+}

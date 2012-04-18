@@ -1,8 +1,12 @@
 #include <types.h>
 #include <synch.h>
+#include <kern/errno.h>
 #include <lib.h>
+#include <thread.h>
+#include <current.h>
 #include <machine/coremap.h>
 #include <vm.h>
+#include <addrspace.h>
 
 struct lock 			*giant_paging_lock;
 /**
@@ -20,4 +24,17 @@ vm_bootstrap( void ) {
 		panic( "vm_bootstrap: could not create giant_paging_lock." );
 }
 
+int
+vm_fault( int fault_type, vaddr_t fault_addr ) {
+	struct addrspace		*as;
+	
+	//make sure it is page aligned.
+	fault_addr &= PAGE_FRAME;
+	
+	//get the addrspace.
+	as = curthread->t_addrspace;
+	if( as == NULL )
+		return EFAULT;
 
+	return as_fault( as, fault_type, fault_addr );
+}	

@@ -1,11 +1,13 @@
 #include <types.h>
 #include <lib.h>
-#include <machine/coremap.h>
 #include <synch.h>
 #include <wchan.h>
 #include <thread.h>
+#include <cpu.h>
 #include <vm.h>
 #include <current.h>
+#include <machine/coremap.h>
+#include <machine/tlb.h>
 
 struct coremap_stats		cm_stats;
 struct coremap_entry		*coremap;
@@ -41,6 +43,8 @@ coremap_init_entry( unsigned int ix ) {
 	coremap[ix].cme_alloc = 0;
 	coremap[ix].cme_referenced = 0;
 	coremap[ix].cme_wired = 0;
+	coremap[ix].cme_tlb_ix = INVALID_TLB_IX;
+	coremap[ix].cme_cpu = 0;
 }
 
 /**
@@ -131,6 +135,13 @@ rank_region_for_paging( int ix, int size ) {
 	return score;
 }
 
+static
+void
+coremap_ensure_integrity() {
+	KASSERT( cm_stats.cms_total_frames == 
+			cm_stats.cms_upages + cm_stats.cms_kpages + cm_stats.cms_free );
+}
+
 /**
  * finds an optimal range inside the coremap
  * to allocate npages. the optimal range is one that requires the least amount of evictions.
@@ -143,6 +154,7 @@ find_optimal_range( int npages ) {
 	int		curr_count;
 	uint32_t	i;
 
+	COREMAP_IS_LOCKED();
 	best_count = -1;
 	best_base = -1;
 	
@@ -184,6 +196,8 @@ static
 int
 do_page_replace( void ) {
 	int		ix;
+	
+	COREMAP_IS_LOCKED();
 
 	//find a page that we could evict.
 	ix = find_pageable_page();
@@ -249,6 +263,8 @@ void
 mark_pages_as_allocated( int start, int num, bool wired, bool is_kernel ) {
 	int 		i;
 
+	COREMAP_IS_LOCKED();
+
 	//go over each page in the range
 	//and mark them as allocated.
 	for( i = start; i < start + num; ++i ) {
@@ -266,6 +282,10 @@ mark_pages_as_allocated( int start, int num, bool wired, bool is_kernel ) {
 
 	//we have less free pages now.
 	cm_stats.cms_free -= num;
+		
+	//paranoia.
+	coremap_ensure_integrity();
+	
 }
 
 /**
@@ -277,6 +297,9 @@ void
 mark_pages_desiredness( int start, int num, bool desired ) {
 	int 		i;
 	
+	//make sure coremap is locked.
+	COREMAP_IS_LOCKED();
+
 	for( i = start; i < start + num; ++i ) {
 		KASSERT( !coremap[i].cme_desired );
 		coremap[i].cme_desired = ( desired ) ? 1 : 0;
@@ -336,8 +359,48 @@ coremap_alloc_multipages( int npages ) {
 
 static
 void
-tlb_invalidate_coremap_entry( int ix ) {
+tlb_invalidate( int ix_tlb ) {
+	uint32_t		tlb_lo;
+	uint32_t		tlb_hi;
+	paddr_t			paddr;
+	unsigned		ix_cme;
 
+	COREMAP_IS_LOCKED();
+
+	//read the tlb entry given by ix_tlb.
+	tlb_read( &tlb_hi, &tlb_lo, ix_tlb );
+
+	//check to see that the entry retrieved is valid.
+	if( tlb_lo & TLBLO_VALID ) {
+		//get the physical address mapped to it.
+		paddr = tlb_lo & TLBLO_PPAGE;
+
+		//convert to coremap index.
+		ix_cme = PADDR_TO_COREMAP( paddr );
+
+		//make sure the coremap reflects that the page is not mapped anymore.
+		coremap[ix_cme].cme_tlb_ix = INVALID_TLB_IX;
+		coremap[ix_cme].cme_cpu = 0;
+		coremap[ix_cme].cme_referenced = 0;
+	}
+	
+	tlb_write( TLBHI_INVALID( ix_tlb ), TLBLO_INVALID(), ix_tlb );
+}
+
+static
+void
+tlb_clear() {
+	int 		i;
+
+	COREMAP_IS_LOCKED();
+	for( i = 0; i < NUM_TLB; ++i )
+		tlb_invalidate( i );
+}
+
+static
+void
+tlb_invalidate_coremap_entry( int ix ) {
+	tlb_invalidate( coremap[ix].cme_tlb_ix );
 }
 
 /**
@@ -402,12 +465,40 @@ coremap_free( paddr_t paddr, bool is_kernel ) {
 		//one extra free page.
 		++cm_stats.cms_free;
 	
+		//paranoia.
+		coremap_ensure_integrity();
+
 		//if we are the last in a series of allocations, bail.
 		if( coremap[i].cme_last ) {
 			coremap[i].cme_last = 0;
 			break;
 		}
 	}
-
 	UNLOCK_COREMAP();
 }
+
+void
+vm_tlbshootdown( const struct tlbshootdown *ts ) {
+	int				i;
+	int				cme_ix;
+	int				tlb_ix;
+
+	LOCK_COREMAP();
+	
+	cme_ix = ts[i].ts_cme_ix;
+	tlb_ix = ts[i].ts_tlb_ix;
+
+	if( coremap[cme_ix].cme_tlb_ix == tlb_ix && coremap[cme_ix].cme_cpu == curcpu->c_number )
+		tlb_invalidate( tlb_ix );
+
+	wchan_wakeall( wc_shootdown );
+	UNLOCK_COREMAP();
+}
+
+void
+vm_tlbshootdown_all( void ) {
+	LOCK_COREMAP();
+	tlb_clear();
+	wchan_wakeall( wc_shootdown );
+	UNLOCK_COREMAP();
+}	

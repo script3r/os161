@@ -36,6 +36,7 @@
 
 
 #include <vm.h>
+#include <vm/region.h>
 #include "opt-dumbvm.h"
 
 struct vnode;
@@ -58,7 +59,7 @@ struct addrspace {
         size_t as_npages2;
         paddr_t as_stackpbase;
 #else
-        /* Put stuff here for your VM system */
+	struct vm_region_array		*as_vm_regions;
 #endif
 };
 
@@ -109,6 +110,8 @@ int               as_define_region(struct addrspace *as,
 int               as_prepare_load(struct addrspace *as);
 int               as_complete_load(struct addrspace *as);
 int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
+
+int		  as_fault( struct addrspace *, int, vaddr_t );
 
 
 /*

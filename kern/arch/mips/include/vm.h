@@ -110,11 +110,8 @@ void ram_getsize(paddr_t *lo, paddr_t *hi);
  */
 
 struct tlbshootdown {
-	/*
-	 * Change this to what you need for your VM design.
-	 */
-	struct addrspace *ts_addrspace;
-	vaddr_t ts_vaddr;
+	int		ts_tlb_ix;
+	unsigned	ts_cme_ix;
 };
 
 #define TLBSHOOTDOWN_MAX 16
