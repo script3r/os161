@@ -850,57 +850,6 @@ schedule(void)
 void
 schedule(void)
 {
-  // 28 Feb 2012 : GWA : Implement your scheduler that prioritizes
-  // "interactive" threads here.
-	
-	/*
-	 * the idea behind the new scheduler
-	 * is that interactive threads call system-calls more often
-	 * then cpu-bound threads, therefore we will give preference to those.
-	 */
-
-	struct cpu	*cpu = NULL;
-	struct thread	*it = NULL;
-	struct thread	*t_max = NULL;
-
-	//get the current cpu.
-	cpu = curcpu;
-
-	//lock its running queue.
-	spinlock_acquire( &cpu->c_runqueue_lock );
-
-	//loop over all the threads, and choose the one that has the
-	//maximum syscalls number. once chosen, we remove that thread and
-	//add it to the front of the runqueue.
-	for ( it = cpu->c_runqueue.tl_head.tln_next->tln_self;
-	     it != NULL && it->t_listnode.tln_next != NULL;
-	     it = it->t_listnode.tln_next->tln_self) {
-
-		//if we're in the first iteration ...
-		if( t_max == NULL ) {
-			t_max = it;
-			continue;
-		}	
-	
-		if( t_max->td_proc != NULL && it->td_proc != NULL ) {
-			if( t_max->td_proc->p_nsyscalls < it->td_proc->p_nsyscalls ) {
-				t_max = it;
-				continue;
-			}
-		}
-	}
-
-	//remove t_max from the runqueue.
-	if( t_max != NULL ) {
-		threadlist_remove( &cpu->c_runqueue, t_max );
-	
-		//add it to the head.
-		threadlist_addhead( &cpu->c_runqueue, t_max );
-	}
-	
-	KASSERT( t_max->t_state == S_READY );
-	//release the lock
-	spinlock_release( &cpu->c_runqueue_lock );
 	
 }
 

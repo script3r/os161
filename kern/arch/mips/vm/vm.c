@@ -32,10 +32,10 @@ vm_fault( int fault_type, vaddr_t fault_addr ) {
 	
 	//make sure it is page aligned.
 	fault_addr &= PAGE_FRAME;
-	
+
 	//get the addrspace.
 	as = curthread->t_addrspace;
-	if( as == NULL )
+	if( as == NULL ) 
 		return EFAULT;
 
 	return as_fault( as, fault_type, fault_addr );

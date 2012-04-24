@@ -15,7 +15,11 @@ struct wchan			*wc_wire;
 struct wchan			*wc_shootdown;
 struct spinlock			slk_coremap = SPINLOCK_INITIALIZER;
 bool				coremap_initialized = false;
+
+
 extern struct spinlock		slk_steal;
+extern paddr_t firstpaddr;
+extern paddr_t lastpaddr;
 
 /**
  * initialize the statistics given the first and last physical addresses
@@ -63,7 +67,8 @@ coremap_bootstrap( void ) {
 	size_t			nsize;		//size of coremap
 	uint32_t		i;		
 	
-	ram_getsize( &first, &last );
+	first = firstpaddr;
+	last = lastpaddr;
 
 	//the number of frames we have to manage.
 	nframes = (last - first) / PAGE_SIZE;
@@ -229,6 +234,7 @@ paddr_t
 coremap_alloc_single( struct vm_page *vmp, bool wired ) {
 	int				ix;
 	int				i;
+	paddr_t				paddr;
 
 	//lock the coremap for atomicity.
 	LOCK_COREMAP();
@@ -238,7 +244,7 @@ coremap_alloc_single( struct vm_page *vmp, bool wired ) {
 
 	//check to see if we have a free page.
 	if( cm_stats.cms_free > 0 ) {
-		for( i = cm_stats.cms_total_frames; i >= 0; --i ) {
+		for( i = cm_stats.cms_total_frames-1; i >= 0; --i ) {
 			if( coremap_is_free( i ) ) {
 				ix = i;
 				break;
@@ -265,9 +271,26 @@ coremap_alloc_single( struct vm_page *vmp, bool wired ) {
 	//mark the page we just got as allocated.
 	//and if we had a virtual page associated, then store it inside the coremap.
 	mark_pages_as_allocated( ix, 1, wired, ( vmp == NULL ) );
+	paddr = COREMAP_TO_PADDR( ix );
 
 	UNLOCK_COREMAP();
-	return COREMAP_TO_PADDR(ix);
+	return paddr;
+}
+
+paddr_t			
+coremap_alloc( struct vm_page *vmp, bool wired ) {
+	return coremap_alloc_single( vmp, wired );
+}
+
+void
+coremap_clone( paddr_t source, paddr_t target ) {
+	vaddr_t		vsource;
+	vaddr_t		vtarget;
+
+	vsource = PADDR_TO_KVADDR( source );
+	vtarget = PADDR_TO_KVADDR( target );
+
+	memcpy( (char *) vsource, (char *) vtarget, PAGE_SIZE );
 }
 
 /**
@@ -440,21 +463,27 @@ get_kpages_by_stealing( int npages ) {
 vaddr_t
 alloc_kpages( int npages ) {
 	paddr_t		paddr;		//the physical addr of the allocated page
-	
-	if( !coremap_initialized )
-		return PADDR_TO_KVADDR( get_kpages_by_stealing( npages ) );
+	vaddr_t		vaddr;
+
+	if( !coremap_initialized ) {
+		paddr = get_kpages_by_stealing( npages );
+		vaddr = PADDR_TO_KVADDR( paddr );
+		return vaddr;
+	}
 
 	//if we have multiple allocation requests, then call the multi-version.
 	//otherwise, simply allocate a single page.
-	( npages > 1 ) ? 
-		coremap_alloc_multipages( npages ) : coremap_alloc_single( NULL, 0 );
+	paddr = ( npages > 1 ) ? 
+			coremap_alloc_multipages( npages ) : 
+			coremap_alloc_single( NULL, 0 );
 	
 	//if we have an invalid physical address
 	//return 0 as a virtual address, which is not possible.
 	if( paddr == INVALID_PADDR )
 		return 0;
-
-	return PADDR_TO_KVADDR( paddr );
+	
+	vaddr = PADDR_TO_KVADDR( paddr );
+	return vaddr;
 }
 
 /**

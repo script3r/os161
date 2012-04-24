@@ -11,8 +11,10 @@ struct vm_page {
 	struct spinlock			vmp_slk;	/* spinlock protecting the members */
 };
 
-#define VM_PAGE_IN_CORE(vmp) ((vmp)->vmp_paddr != INVALID_PADDR)
+#define VM_PAGE_IN_CORE(vmp) (((vmp)->vmp_paddr & PAGE_FRAME) != INVALID_PADDR)
 #define VM_PAGE_IN_BACKING(vmp) ((vmp)->vmp_swapaddr != INVLALID_SWAPADDR)
+
+#define VM_PAGE_DIRTY 0x01
 
 struct vm_page 		*vm_page_create( void );
 void			vm_page_destroy( struct vm_page * );
