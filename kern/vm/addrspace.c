@@ -33,6 +33,7 @@
 #include <addrspace.h>
 #include <vm.h>
 #include <vm/region.h>
+#include <vm/page.h>
 #include <array.h>
 
 /*
@@ -220,10 +221,33 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 
 int
 as_fault( struct addrspace *as, int fault_type, vaddr_t fault_addr ) {
-	(void)as;
-	(void)fault_type;
-	(void)fault_addr;
+	struct vm_region		*vmr;
+	int				ix_page;
+	struct vm_page			*vmp;
+	int				res;
 
-	//
-	return EFAULT;
+	KASSERT( as != NULL );
+
+	//find the responsible vm_region for the faulty address.
+	vmr = vm_region_find_responsible( as, fault_addr );
+	if( vmr == NULL )
+		return EFAULT;
+
+	//find the responsible vm_page.
+	ix_page = (fault_addr - vmr->vmr_base) / PAGE_SIZE;
+	
+	//get the virtual page.
+	vmp = vm_page_array_get( vmr->vmr_pages, ix_page );
+	
+	//if the virtual page is null, it means we have to zero-fill it.
+	if( vmp == NULL ) {
+		//create  a new blank page
+		res = vm_page_new_blank( &vmp );
+		if( res ) 
+			return res;
+		
+		//append to to the region.
+		vm_page_array_set( vmr->vmr_pages, ix_page, vmp );
+	}
+	return vm_page_fault( vmp, as, fault_type, fault_addr );
 }

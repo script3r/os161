@@ -196,3 +196,18 @@ vm_page_create( ) {
 
 	return vmp;
 }
+
+int
+vm_page_new_blank( struct vm_page **ret ) {
+	(void)ret;
+	return ENOMEM;
+}
+
+int
+vm_page_fault( struct vm_page *vmr, struct addrspace *as, int fault_type, vaddr_t fault_vaddr ) {
+	(void)vmr;
+	(void)as;	
+	(void)fault_type;
+	(void)fault_vaddr;
+	return EFAULT;
+}

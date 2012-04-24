@@ -25,5 +25,4 @@ int			vm_page_clone( struct vm_page *, struct vm_page ** );
 int			vm_page_new_blank( struct vm_page ** );
 int			vm_page_fault( struct vm_page *, struct addrspace *, int fault_type, vaddr_t );
 int			vm_page_evict( struct vm_page * );
-
 #endif

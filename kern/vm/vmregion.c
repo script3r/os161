@@ -163,7 +163,7 @@ vm_region_clone( struct addrspace *as, struct vm_region *source, struct vm_regio
 }
 
 struct vm_region *
-vm_region_find( struct addrspace *as, vaddr_t vaddr ) {
+vm_region_find_responsible( struct addrspace *as, vaddr_t vaddr ) {
 	unsigned		ix;
 	struct vm_region	*vmr;
 	vaddr_t			top;
@@ -178,9 +178,11 @@ vm_region_find( struct addrspace *as, vaddr_t vaddr ) {
 		bottom = vmr->vmr_base;	
 		top = vmr->vmr_base + vm_page_array_num( vmr->vmr_pages ) * PAGE_SIZE;
 		
+		//if the virtual address is between bottom and top
+		//thats the vm_region we are looking for.
 		if( vaddr >= bottom && vaddr < top )
 			return vmr;
 	}
-
 	return NULL;
 }
+
