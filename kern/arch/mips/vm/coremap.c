@@ -526,4 +526,18 @@ vm_tlbshootdown_all( void ) {
 	tlb_clear();
 	wchan_wakeall( wc_shootdown );
 	UNLOCK_COREMAP();
+}
+
+void
+vm_map( struct addrspace *as, vaddr_t vaddr, paddr_t paddr, int write ) {
+	(void) as;
+	(void) vaddr;
+	(void) paddr;
+	(void) write;
+}
+
+void
+vm_unmap( struct addrspace *as, vaddr_t vaddr ) {
+	(void) as;
+	(void) vaddr;
 }	
