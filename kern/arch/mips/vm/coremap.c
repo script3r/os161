@@ -311,6 +311,8 @@ mark_pages_as_allocated( int start, int num, bool wired, bool is_kernel ) {
 		coremap[i].cme_kernel = ( is_kernel ) ? 1 : 0;
 		coremap[i].cme_referenced = 1;
 	}
+	
+	coremap[i-1].cme_last = 1;
 
 	//update statistics
 	if( is_kernel )
