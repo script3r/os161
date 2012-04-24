@@ -312,6 +312,7 @@ mark_pages_as_allocated( int start, int num, bool wired, bool is_kernel ) {
 		coremap[i].cme_referenced = 1;
 	}
 	
+	//mark the last page of this allocation as the last.
 	coremap[i-1].cme_last = 1;
 
 	//update statistics

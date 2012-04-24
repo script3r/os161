@@ -161,3 +161,26 @@ vm_region_clone( struct addrspace *as, struct vm_region *source, struct vm_regio
 	*target = vmr;
 	return 0;
 }
+
+struct vm_region *
+vm_region_find( struct addrspace *as, vaddr_t vaddr ) {
+	unsigned		ix;
+	struct vm_region	*vmr;
+	vaddr_t			top;
+	vaddr_t			bottom;
+
+	//loop over all possible regions.
+	for( ix = 0; ix < vm_region_array_num( as->as_regions ); ++ix ) {
+		//get the vm_region
+		vmr = vm_region_array_get( as->as_regions, ix );
+		
+		//calculate top and bottom
+		bottom = vmr->vmr_base;	
+		top = vmr->vmr_base + vm_page_array_num( vmr->vmr_pages ) * PAGE_SIZE;
+		
+		if( vaddr >= bottom && vaddr < top )
+			return vmr;
+	}
+
+	return NULL;
+}

@@ -210,15 +210,7 @@ as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 	int			err;
 
 	//create the stack region.
-	err = as_define_region(
-		as,
-		USERSTACKBASE,
-		USERSTACKSIZE,
-		1,
-		1,
-		0
-	);
-	
+	err = as_define_region( as, USERSTACKBASE, USERSTACKSIZE, 1, 1, 0 );
 	if( err )
 		return err;
 
@@ -232,5 +224,6 @@ as_fault( struct addrspace *as, int fault_type, vaddr_t fault_addr ) {
 	(void)fault_type;
 	(void)fault_addr;
 
+	//
 	return EFAULT;
 }
