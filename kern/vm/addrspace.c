@@ -54,8 +54,8 @@ as_create(void)
 	}
 
 	//create the array of regions.
-	as->as_vm_regions = vm_region_array_create();
-	if( as->as_vm_regions == NULL ) {
+	as->as_regions = vm_region_array_create();
+	if( as->as_regions == NULL ) {
 		kfree( as );
 		return NULL;
 	}
@@ -66,18 +66,29 @@ as_create(void)
 int
 as_copy(struct addrspace *old, struct addrspace **ret)
 {
-	struct addrspace *newas;
+	struct addrspace 	*newas;
+	struct vm_region 	*vmr;
+	struct vm_region	*newvmr;
+	unsigned		i;
+	int			result;
 
 	newas = as_create();
 	if (newas==NULL) {
 		return ENOMEM;
 	}
 
-	/*
-	 * Write this.
-	 */
+	//copy all vm regions that reside in the old addrspace.
+	for( i = 0; i < vm_region_array_num( old->as_regions ); ++i ) {
+		vmr = vm_region_array_get( old->as_regions, i );
 
-	(void)old;
+		//if clone fails, we simply return the reason
+		//it failed, after destroying newas.
+		result = vm_region_clone( newas, vmr, &newvmr );
+		if( result ) {
+			as_destroy( newas );
+			return result;
+		}
+	}
 	
 	*ret = newas;
 	return 0;
@@ -86,23 +97,53 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 void
 as_destroy(struct addrspace *as)
 {
-	/*
-	 * Clean up as needed.
-	 */
-	
-	kfree(as);
+	struct vm_region		*vmr;
+	unsigned			i;
+
+	//destroy each vm region associated with this addrspace.
+	for( i = 0; i < vm_region_array_num( as->as_regions ); ++i ) {
+		vmr = vm_region_array_get( as->as_regions, i );
+		vm_region_destroy( as, vmr );
+	}
+
+	//reside the regions array to 0, and
+	//destroy the array.
+	vm_region_array_setsize( as->as_regions, 0 );
+	vm_region_array_destroy( as->as_regions );
+	kfree( as );
 }
 
 void
 as_activate(struct addrspace *as)
 {
-	/*
-	 * Write this.
-	 */
-
-	(void)as;  // suppress warning until code gets written
+	(void) as;
 }
 
+static 
+bool
+as_overlaps_region( struct addrspace *as, size_t sz, vaddr_t vaddr ) {
+	unsigned		i;
+	vaddr_t			bottom;
+	vaddr_t			top;
+	struct vm_region	*vmr;
+
+	//loop over all regions.
+	for( i = 0; i <  vm_region_array_num( as->as_regions ); ++i ) {
+		//get the current region.
+		vmr = vm_region_array_get( as->as_regions, i );
+
+		//calculate bottom and top virtual addresses.
+		bottom = vmr->vmr_base;
+		top = bottom + vm_page_array_num( vmr->vmr_pages ) * PAGE_SIZE;
+
+		//if the tail & head of the new vm_region are inside
+		//the current address space block,then we have an overlap.
+		if( vaddr + sz > bottom && vaddr < top )
+			return true;
+	}
+
+	return false;
+}
 /*
  * Set up a segment at virtual address VADDR of size MEMSIZE. The
  * segment in memory extends from VADDR up to (but not including)
@@ -117,26 +158,41 @@ int
 as_define_region(struct addrspace *as, vaddr_t vaddr, size_t sz,
 		 int readable, int writeable, int executable)
 {
-	/*
-	 * Write this.
-	 */
+	struct vm_region		*vmr;
+	int				res;
 
-	(void)as;
-	(void)vaddr;
-	(void)sz;
-	(void)readable;
-	(void)writeable;
-	(void)executable;
-	return EUNIMP;
+	(void) readable;
+	(void) writeable;
+	(void) executable;
+
+	//align the virtual address.
+	vaddr &= PAGE_FRAME;	
+	
+	//round up the size so it is a multiple of the page size.
+	sz = ROUNDUP( sz, PAGE_SIZE );
+	
+	//if there's an overlap, well we have a problem.
+	if( as_overlaps_region( as, sz, vaddr ) )
+		return EINVAL;
+	
+	//create a region with the specified amount of pages.
+	vmr = vm_region_create( sz / PAGE_SIZE );
+	if( vmr == NULL )
+		return ENOMEM;
+
+	vmr->vmr_base = vaddr;
+	//add it to the addresspace.
+	res = vm_region_array_add( as->as_regions, vmr, NULL );
+	if( res ) {
+		vm_region_destroy( as, vmr );
+		return res;
+	}
+	return 0;
 }
 
 int
 as_prepare_load(struct addrspace *as)
 {
-	/*
-	 * Write this.
-	 */
-
 	(void)as;
 	return 0;
 }
@@ -144,10 +200,6 @@ as_prepare_load(struct addrspace *as)
 int
 as_complete_load(struct addrspace *as)
 {
-	/*
-	 * Write this.
-	 */
-
 	(void)as;
 	return 0;
 }
@@ -155,15 +207,22 @@ as_complete_load(struct addrspace *as)
 int
 as_define_stack(struct addrspace *as, vaddr_t *stackptr)
 {
-	/*
-	 * Write this.
-	 */
+	int			err;
 
-	(void)as;
-
-	/* Initial user-level stack pointer */
-	*stackptr = USERSTACK;
+	//create the stack region.
+	err = as_define_region(
+		as,
+		USERSTACKBASE,
+		USERSTACKSIZE,
+		1,
+		1,
+		0
+	);
 	
+	if( err )
+		return err;
+
+	*stackptr = USERSTACK;
 	return 0;
 }
 

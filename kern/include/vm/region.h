@@ -4,6 +4,7 @@
 #include <array.h>
 #include <spinlock.h>
 
+struct addrspace; /* opaque */
 
 /**
  * using the built-in array data-structure instead of a linked list
@@ -18,8 +19,8 @@ struct vm_region {
 
 DECLARRAY_BYTYPE( vm_region_array, struct vm_region );
 
-struct vm_region		*vm_region_create( void );
-void				vm_region_destroy( struct vm_region * );
-int				vm_region_clone( struct vm_region *, struct vm_region ** );
+struct vm_region		*vm_region_create( size_t );
+void				vm_region_destroy( struct addrspace *, struct vm_region * );
+int				vm_region_clone( struct addrspace *, struct vm_region *, struct vm_region ** );
 
 #endif

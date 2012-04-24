@@ -82,7 +82,10 @@
  * We put the stack at the very top of user virtual memory because it
  * grows downwards.
  */
-#define USERSTACK     USERSPACETOP
+#define USERSTACK     	USERSPACETOP
+#define USERSTACKSIZE	(256 * PAGE_SIZE)
+#define USERSTACKBASE	(USERSTACK - USERSTACKSIZE)
+#define INVALID_VADDR 	0xcafebabe
 
 /*
  * Interface to the low-level module that looks after the amount of

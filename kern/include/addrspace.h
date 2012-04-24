@@ -59,7 +59,7 @@ struct addrspace {
         size_t as_npages2;
         paddr_t as_stackpbase;
 #else
-	struct vm_region_array		*as_vm_regions;
+	struct vm_region_array		*as_regions;
 #endif
 };
 
