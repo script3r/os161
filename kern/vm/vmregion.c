@@ -117,3 +117,47 @@ vm_region_resize( struct addrspace *as, struct vm_region *vmr, unsigned npages )
 		return vm_region_shrink( as, vmr, npages );
 	return vm_region_expand( vmr, npages );
 }
+
+int
+vm_region_clone( struct addrspace *as, struct vm_region *source, struct vm_region **target ) {
+	struct vm_region		*vmr;
+	unsigned			i;
+	struct vm_page			*vmp;
+	struct vm_page			*vmp_clone;
+	int				res;
+
+	//create a new vm_region with the same amount of pages
+	//as the previous one.
+	vmr = vm_region_create( vm_page_array_num( source->vmr_pages ) );
+	if( vmr == NULL )
+		return ENOMEM;
+
+	//copy the base.
+	vmr->vmr_base = source->vmr_base;
+
+	//loop over each of the pages
+	for( i = 0; i < vm_page_array_num( source->vmr_pages ); ++i ) {
+		vmp = vm_page_array_get( source->vmr_pages, i );
+		vmp_clone = vm_page_array_get( vmr->vmr_pages, i );
+
+		//if the page from the old addrspace is null, we dont
+		//have anything to do.
+		if( vmp == NULL )
+			continue;
+	
+		//clone the page.
+		res = vm_page_clone( vmp, &vmp_clone );	
+		if( res ) {
+			vm_region_destroy( as, vmr );
+			return res;
+		}	
+
+		//now that we have the cloned page, add it to
+		//the addrspace array
+		vm_page_array_set( vmr->vmr_pages, i, vmp_clone );
+	}
+	
+	//copy to the given pointer
+	*target = vmr;
+	return 0;
+}

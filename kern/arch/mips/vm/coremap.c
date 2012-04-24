@@ -216,6 +216,15 @@ do_page_replace( void ) {
 }
 
 static
+void
+coremap_wire_wait( ) {
+	wchan_lock( wc_wire );
+	UNLOCK_COREMAP();
+	wchan_sleep( wc_wire );
+	LOCK_COREMAP();
+}
+
+static
 paddr_t
 coremap_alloc_single( struct vm_page *vmp, bool wired ) {
 	int				ix;
@@ -540,4 +549,38 @@ void
 vm_unmap( struct addrspace *as, vaddr_t vaddr ) {
 	(void) as;
 	(void) vaddr;
-}	
+}
+
+void
+coremap_wire( paddr_t paddr ) {
+	unsigned		cix;
+
+	cix = PADDR_TO_COREMAP( paddr );
+
+	//lock the coremap
+	LOCK_COREMAP();
+	
+	//while the page is already wired
+	while( coremap[cix].cme_wired ) {
+		//we go to sleep in the waiting channel
+		//of the pin pages
+		coremap_wire_wait();
+	}
+	
+	KASSERT( coremap[cix].cme_wired == 0 );
+	coremap[cix].cme_wired = 1;
+
+	UNLOCK_COREMAP();
+}
+void
+coremap_unwire( paddr_t	paddr ) {
+	unsigned 		cix;
+	
+	cix = PADDR_TO_COREMAP( paddr );
+
+	LOCK_COREMAP();
+	coremap[cix].cme_wired = 0;
+	wchan_wakeall( wc_wire );
+	UNLOCK_COREMAP();
+}
+		

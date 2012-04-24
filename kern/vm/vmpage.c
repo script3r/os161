@@ -14,7 +14,41 @@
 static
 void
 vm_page_acquire( struct vm_page *vmp ) {
-	(void)vmp;
+	paddr_t		paddr;
+	paddr_t		wired;
+
+	wired = INVALID_PADDR;
+
+	//lock the page.
+	vm_page_lock( vmp );
+	for( ;; ) {
+		//get the physical address
+		paddr = vmp->vmp_paddr & PAGE_FRAME;
+
+		//if the physcal address matches the wired address
+		//we are done.
+		if( paddr == wired )
+			break;
+		
+
+		//unlock the page.
+		vm_page_unlock( vmp );
+	
+		//that means we pinned this physical addr before
+		if( wired != INVALID_PADDR )
+			coremap_unwire( paddr );
+		
+		
+		//check if the page has been paged out.
+		if( paddr == INVALID_PADDR ) {
+			vm_page_lock( vmp );
+			break;
+		}
+		
+		coremap_wire( paddr );
+		wired = paddr;
+		vm_page_lock( vmp );
+	}
 }
 
 void
@@ -45,3 +79,14 @@ vm_page_destroy( struct vm_page *vmp ) {
 	spinlock_cleanup( &vmp->vmp_slk );
 	kfree( vmp );
 }
+
+void
+vm_page_lock( struct vm_page *vmp ) {
+	spinlock_acquire( &vmp->vmp_slk );
+}
+
+void
+vm_page_unlock( struct vm_page *vmp ) {
+	spinlock_release( &vmp->vmp_slk );
+}
+
