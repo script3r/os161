@@ -43,6 +43,30 @@ tlb_get_free_slot() {
 	return -1;
 }
 
+void
+tlb_unmap( vaddr_t vaddr ) {
+	int		ix_tlb;
+	uint32_t	tlb_hi;
+	uint32_t	tlb_lo;
+
+	
+	//probe the tlb for the given vaddr.
+	ix_tlb = tlb_probe( vaddr, 0 );
+
+	//if it does not exist, then there's nothing to unmap.
+	if( ix_tlb < 0 )
+		return;
+	
+	//read the tlb entry.
+	tlb_read( &tlb_hi, &tlb_lo, ix_tlb );
+
+	//make sure it is a valid mapping.
+	KASSERT( tlb_lo & TLBLO_VALID );
+
+	//invalidate the entry.
+	tlb_invalidate( ix_tlb );
+}
+
 /**
  * kickstart the virtual memory system.
  * we simply initialize our coremap structure.
@@ -70,6 +94,7 @@ vm_fault( int fault_type, vaddr_t fault_addr ) {
 	if( as == NULL ) 
 		return EFAULT;
 
+	//delegate the fault to the address space.
 	return as_fault( as, fault_type, fault_addr );
 }
 
@@ -137,9 +162,58 @@ vm_map( vaddr_t vaddr, paddr_t paddr, int writeable ) {
 }
 
 void
-vm_unmap( struct addrspace *as, vaddr_t vaddr ) {
-	(void) as;
-	(void) vaddr;
+vm_unmap( vaddr_t vaddr ) {
+	LOCK_COREMAP();
+	tlb_unmap( vaddr );
+	UNLOCK_COREMAP();
 }
 
+void
+tlb_invalidate( int ix_tlb ) {
+	uint32_t		tlb_lo;
+	uint32_t		tlb_hi;
+	paddr_t			paddr;
+	unsigned		ix_cme;
 
+	KASSERT( ix_tlb >= 0 && ix_tlb < NUM_TLB );
+
+	COREMAP_IS_LOCKED();
+
+	//read the tlb entry given by ix_tlb.
+	tlb_read( &tlb_hi, &tlb_lo, ix_tlb );
+
+	//check to see that the entry retrieved is valid.
+	if( tlb_lo & TLBLO_VALID ) {
+		//get the physical address mapped to it.
+		paddr = tlb_lo & TLBLO_PPAGE;
+
+		//convert to coremap index.
+		ix_cme = PADDR_TO_COREMAP( paddr );
+
+		//make sure the coremap reflects that the page is not mapped anymore.
+		coremap[ix_cme].cme_tlb_ix = INVALID_TLB_IX;
+		coremap[ix_cme].cme_cpu = 0;
+		coremap[ix_cme].cme_referenced = 0;
+	}
+	
+	tlb_write( TLBHI_INVALID( ix_tlb ), TLBLO_INVALID() , ix_tlb );
+}
+
+void
+tlb_clear() {
+	int 		i;
+
+	COREMAP_IS_LOCKED();
+	for( i = 0; i < NUM_TLB; ++i )
+		tlb_invalidate( i );
+}
+
+void
+tlb_invalidate_coremap_entry( unsigned ix ) {
+	KASSERT( ix < cm_stats.cms_total_frames );
+	if( coremap[ix].cme_tlb_ix < 0 ) 
+		tlb_invalidate( coremap[ix].cme_tlb_ix );
+	
+	KASSERT( coremap[ix].cme_tlb_ix == -1 );
+	KASSERT( coremap[ix].cme_cpu == 0 );
+}

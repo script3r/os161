@@ -35,6 +35,8 @@
 #include <vm/region.h>
 #include <vm/page.h>
 #include <array.h>
+#include <machine/coremap.h>
+#include <current.h>
 
 /*
  * Note! If OPT_DUMBVM is set, as is the case until you start the VM
@@ -84,7 +86,7 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 
 		//if clone fails, we simply return the reason
 		//it failed, after destroying newas.
-		result = vm_region_clone( newas, vmr, &newvmr );
+		result = vm_region_clone( vmr, &newvmr );
 		if( result ) {
 			as_destroy( newas );
 			return result;
@@ -104,7 +106,7 @@ as_destroy(struct addrspace *as)
 	//destroy each vm region associated with this addrspace.
 	for( i = 0; i < vm_region_array_num( as->as_regions ); ++i ) {
 		vmr = vm_region_array_get( as->as_regions, i );
-		vm_region_destroy( as, vmr );
+		vm_region_destroy( vmr );
 	}
 
 	//reside the regions array to 0, and
@@ -117,7 +119,11 @@ as_destroy(struct addrspace *as)
 void
 as_activate(struct addrspace *as)
 {
-	(void) as;
+	KASSERT( as != NULL || curthread->t_addrspace == as );
+
+	//LOCK_COREMAP();
+	//tlb_clear();
+	//UNLOCK_COREMAP();
 }
 
 static 
@@ -185,7 +191,7 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t sz,
 	//add it to the addresspace.
 	res = vm_region_array_add( as->as_regions, vmr, NULL );
 	if( res ) {
-		vm_region_destroy( as, vmr );
+		vm_region_destroy( vmr );
 		return res;
 	}
 	return 0;

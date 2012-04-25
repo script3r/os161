@@ -398,51 +398,7 @@ coremap_alloc_multipages( int npages ) {
 	return COREMAP_TO_PADDR( ix );
 }
 
-static
-void
-tlb_invalidate( int ix_tlb ) {
-	uint32_t		tlb_lo;
-	uint32_t		tlb_hi;
-	paddr_t			paddr;
-	unsigned		ix_cme;
 
-	COREMAP_IS_LOCKED();
-
-	//read the tlb entry given by ix_tlb.
-	tlb_read( &tlb_hi, &tlb_lo, ix_tlb );
-
-	//check to see that the entry retrieved is valid.
-	if( tlb_lo & TLBLO_VALID ) {
-		//get the physical address mapped to it.
-		paddr = tlb_lo & TLBLO_PPAGE;
-
-		//convert to coremap index.
-		ix_cme = PADDR_TO_COREMAP( paddr );
-
-		//make sure the coremap reflects that the page is not mapped anymore.
-		coremap[ix_cme].cme_tlb_ix = INVALID_TLB_IX;
-		coremap[ix_cme].cme_cpu = 0;
-		coremap[ix_cme].cme_referenced = 0;
-	}
-	
-	tlb_write( TLBHI_INVALID( ix_tlb ), TLBLO_INVALID(), ix_tlb );
-}
-
-static
-void
-tlb_clear() {
-	int 		i;
-
-	COREMAP_IS_LOCKED();
-	for( i = 0; i < NUM_TLB; ++i )
-		tlb_invalidate( i );
-}
-
-static
-void
-tlb_invalidate_coremap_entry( int ix ) {
-	tlb_invalidate( coremap[ix].cme_tlb_ix );
-}
 
 
 static

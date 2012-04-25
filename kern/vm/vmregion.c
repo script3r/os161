@@ -50,9 +50,9 @@ vm_region_create( size_t npages ) {
 }
 
 void
-vm_region_destroy( struct addrspace *as, struct vm_region *vmr ) {
+vm_region_destroy( struct vm_region *vmr ) {
 	//resize the vm region to 0.
-	KASSERT( vm_region_resize( as, vmr, 0 ) == 0 );
+	KASSERT( vm_region_resize( vmr, 0 ) == 0 );
 
 	//destroy the pages associated with the region.
 	vm_page_array_destroy( vmr->vmr_pages );
@@ -62,7 +62,7 @@ vm_region_destroy( struct addrspace *as, struct vm_region *vmr ) {
 
 static
 int
-vm_region_shrink( struct addrspace *as, struct vm_region *vmr, unsigned npages ) {
+vm_region_shrink( struct vm_region *vmr, unsigned npages ) {
 	unsigned		i;
 	struct vm_page		*vmp;
 
@@ -72,7 +72,7 @@ vm_region_shrink( struct addrspace *as, struct vm_region *vmr, unsigned npages )
 			continue;
 
 		//unmap tlb entries.
-		vm_unmap( as, vmr->vmr_base + PAGE_SIZE * i );
+		vm_unmap( vmr->vmr_base + PAGE_SIZE * i );
 
 		//destroy the page.
 		vm_page_destroy( vmp );	
@@ -108,18 +108,17 @@ vm_region_expand( struct vm_region *vmr, unsigned npages ) {
 }
 
 int			
-vm_region_resize( struct addrspace *as, struct vm_region *vmr, unsigned npages ) {
-	KASSERT( as != NULL );
+vm_region_resize( struct vm_region *vmr, unsigned npages ) {
 	KASSERT( vmr != NULL );
 	KASSERT( vmr->vmr_pages != NULL );
 
 	if( npages < vm_page_array_num( vmr->vmr_pages ) )
-		return vm_region_shrink( as, vmr, npages );
+		return vm_region_shrink( vmr, npages );
 	return vm_region_expand( vmr, npages );
 }
 
 int
-vm_region_clone( struct addrspace *as, struct vm_region *source, struct vm_region **target ) {
+vm_region_clone( struct vm_region *source, struct vm_region **target ) {
 	struct vm_region		*vmr;
 	unsigned			i;
 	struct vm_page			*vmp;
@@ -148,7 +147,7 @@ vm_region_clone( struct addrspace *as, struct vm_region *source, struct vm_regio
 		//clone the page.
 		res = vm_page_clone( vmp, &vmp_clone );	
 		if( res ) {
-			vm_region_destroy( as, vmr );
+			vm_region_destroy( vmr );
 			return res;
 		}	
 
