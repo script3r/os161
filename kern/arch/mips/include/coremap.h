@@ -45,6 +45,8 @@ void			mark_pages_as_allocated( int, int, bool, bool);
 
 extern struct coremap_entry		*coremap;
 extern struct spinlock			slk_coremap;
+extern struct wchan			*wc_wire;
+extern struct coremap_stats		cm_stats;
 
 
 #endif

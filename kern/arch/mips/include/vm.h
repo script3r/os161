@@ -107,7 +107,7 @@ void ram_bootstrap(void);
 paddr_t ram_stealmem(unsigned long npages);
 void ram_getsize(paddr_t *lo, paddr_t *hi);
 
-void		vm_map( struct addrspace *, vaddr_t, paddr_t, int );
+void		vm_map( vaddr_t, paddr_t, int );
 void		vm_unmap( struct addrspace *, vaddr_t );
 
 /*

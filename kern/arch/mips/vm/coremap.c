@@ -570,20 +570,6 @@ vm_tlbshootdown_all( void ) {
 }
 
 void
-vm_map( struct addrspace *as, vaddr_t vaddr, paddr_t paddr, int write ) {
-	(void) as;
-	(void) vaddr;
-	(void) paddr;
-	(void) write;
-}
-
-void
-vm_unmap( struct addrspace *as, vaddr_t vaddr ) {
-	(void) as;
-	(void) vaddr;
-}
-
-void
 coremap_wire( paddr_t paddr ) {
 	unsigned		cix;
 
@@ -616,3 +602,10 @@ coremap_unwire( paddr_t	paddr ) {
 	UNLOCK_COREMAP();
 }
 		
+void
+coremap_zero( paddr_t paddr ) {
+	vaddr_t		vaddr;
+
+	vaddr = PADDR_TO_KVADDR( paddr );
+	bzero( (char*)vaddr, PAGE_SIZE );
+}

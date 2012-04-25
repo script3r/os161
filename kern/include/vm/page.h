@@ -13,6 +13,7 @@ struct vm_page {
 
 #define VM_PAGE_IN_CORE(vmp) (((vmp)->vmp_paddr & PAGE_FRAME) != INVALID_PADDR)
 #define VM_PAGE_IN_BACKING(vmp) ((vmp)->vmp_swapaddr != INVLALID_SWAPADDR)
+#define VM_PAGE_IS_LOCKED(vmp) (KASSERT(spinlock_do_i_hold(&(vmp)->vmp_slk)))
 
 #define VM_PAGE_DIRTY 0x01
 

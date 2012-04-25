@@ -190,7 +190,9 @@ vm_page_create( ) {
 		return NULL;
 	
 	spinlock_init( &vmp->vmp_slk );
-
+	
+	//initialize both the physical address
+	//and swap address to be invalid.
 	vmp->vmp_paddr = INVALID_PADDR;
 	vmp->vmp_swapaddr = INVALID_SWAPADDR;
 
@@ -199,15 +201,74 @@ vm_page_create( ) {
 
 int
 vm_page_new_blank( struct vm_page **ret ) {
-	(void)ret;
-	return ENOMEM;
+	struct vm_page		*vmp;
+	paddr_t			paddr;
+	int			res;
+	
+	res = vm_page_new( &vmp, &paddr );
+	if( res )
+		return res;
+	
+	//make sure the page is locked.
+	VM_PAGE_IS_LOCKED( vmp );
+
+	//unlock the page.
+	vm_page_unlock( vmp );
+
+	//zero the paddr and unwire it
+	coremap_zero( paddr );
+	coremap_unwire( paddr );
+
+	*ret = vmp;
+	return 0;
 }
 
 int
-vm_page_fault( struct vm_page *vmr, struct addrspace *as, int fault_type, vaddr_t fault_vaddr ) {
-	(void)vmr;
-	(void)as;	
-	(void)fault_type;
-	(void)fault_vaddr;
-	return EFAULT;
+vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_t fault_vaddr ) {
+	paddr_t		paddr;
+	int		writeable;
+
+	(void) as;
+
+	//we lock the page for atomicity.
+	vm_page_lock( vmp );
+
+	//get the physical address.
+	paddr = vmp->vmp_paddr;
+
+	//if the page is in core
+	if( paddr != INVALID_PADDR ) {
+		//wire the coremap entry associated
+		coremap_wire( paddr );	
+	} 
+	else {
+		panic( "paging is not complete yet." );
+	}
+
+	//which fault happened?
+	switch( fault_type ) {
+		case VM_FAULT_READONLY:
+			panic( "page_replacement is not done yet." );
+		case VM_FAULT_READ:	
+			writeable = 0;
+			break;
+		case VM_FAULT_WRITE:
+			writeable = 1;
+			break;
+		default:
+			coremap_unwire( paddr );
+			vm_page_unlock( vmp );
+			return EINVAL;
+		
+	}
+
+	//map fault_vaddr into paddr with writeable flags.
+	vm_map( fault_vaddr, paddr, writeable );
+
+	//unwire the coremap entry.
+	coremap_unwire( paddr );
+
+	//unlock the page.
+	vm_page_unlock( vmp );
+	return 0;
 }
