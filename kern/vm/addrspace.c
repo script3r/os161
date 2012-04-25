@@ -120,10 +120,9 @@ void
 as_activate(struct addrspace *as)
 {
 	KASSERT( as != NULL || curthread->t_addrspace == as );
-
-	//LOCK_COREMAP();
-	//tlb_clear();
-	//UNLOCK_COREMAP();
+	LOCK_COREMAP();
+	tlb_clear();
+	UNLOCK_COREMAP();
 }
 
 static 

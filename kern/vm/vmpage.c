@@ -234,7 +234,7 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 	vm_page_lock( vmp );
 
 	//get the physical address.
-	paddr = vmp->vmp_paddr;
+	paddr = vmp->vmp_paddr & PAGE_FRAME;
 
 	//if the page is in core
 	if( paddr != INVALID_PADDR ) {
@@ -248,7 +248,9 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 	//which fault happened?
 	switch( fault_type ) {
 		case VM_FAULT_READONLY:
-			panic( "page_replacement is not done yet." );
+			writeable = 1;
+			vmp->vmp_paddr |= VM_PAGE_DIRTY;
+			break;
 		case VM_FAULT_READ:	
 			writeable = 0;
 			break;
