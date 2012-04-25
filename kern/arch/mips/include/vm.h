@@ -84,7 +84,7 @@ struct addrspace; /* opaque */
  * grows downwards.
  */
 #define USERSTACK     	USERSPACETOP
-#define USERSTACKSIZE	(256 * PAGE_SIZE)
+#define USERSTACKSIZE	(512 * PAGE_SIZE)
 #define USERSTACKBASE	(USERSTACK - USERSTACKSIZE)
 #define INVALID_VADDR 	0xcafebabe
 

@@ -211,7 +211,7 @@ tlb_clear() {
 void
 tlb_invalidate_coremap_entry( unsigned ix ) {
 	KASSERT( ix < cm_stats.cms_total_frames );
-	if( coremap[ix].cme_tlb_ix < 0 ) 
+	if( coremap[ix].cme_tlb_ix != -1 ) 
 		tlb_invalidate( coremap[ix].cme_tlb_ix );
 	
 	KASSERT( coremap[ix].cme_tlb_ix == -1 );

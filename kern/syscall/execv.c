@@ -241,6 +241,8 @@ sys_execv( userptr_t upname, userptr_t uargs ) {
 	err = load_elf( vn, &entry_ptr );
 	if( err ) {
 		curthread->t_addrspace = as_old;
+		as_activate( as_old );
+	
 		as_destroy( as_new );
 		vfs_close( vn );
 		lock_release( lk_exec );
@@ -251,6 +253,8 @@ sys_execv( userptr_t upname, userptr_t uargs ) {
 	err = as_define_stack( as_new, &stack_ptr );
 	if( err ) {
 		curthread->t_addrspace = as_old;
+		as_activate( as_old );
+
 		as_destroy( as_new );
 		vfs_close( vn );
 		lock_release( lk_exec );
@@ -262,6 +266,8 @@ sys_execv( userptr_t upname, userptr_t uargs ) {
 	err = adjust_kargbuf( nargs, stack_ptr );
 	if( err ) {
 		curthread->t_addrspace = as_old;
+		as_activate( as_old );
+
 		as_destroy( as_new );
 		vfs_close( vn );
 		lock_release( lk_exec );
@@ -272,6 +278,7 @@ sys_execv( userptr_t upname, userptr_t uargs ) {
 	err = copyout( kargbuf, (userptr_t)stack_ptr, buflen );
 	if( err ) {
 		curthread->t_addrspace = as_old;
+		as_activate( as_old );
 		as_destroy( as_new );
 		vfs_close( vn );
 		lock_release( lk_exec );

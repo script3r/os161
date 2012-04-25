@@ -135,9 +135,10 @@ vm_page_clone( struct vm_page *source, struct vm_page **target ) {
 	//acquire the source page.
 	vm_page_acquire( source );
 
-	//if the source page is not in core
-	//we must swap it in.
-	if( !VM_PAGE_IN_CORE( source ) ) {
+	source_paddr = source->vmp_paddr & PAGE_FRAME;
+
+	//if the source page is not in core, swap it in.
+	if( source_paddr == INVALID_PADDR ) {
 		//get the swap offset of the source page.
 		swap_addr = source->vmp_swapaddr;
 		
@@ -230,6 +231,8 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 
 	(void) as;
 
+	KASSERT( fault_vaddr & PAGE_FRAME );
+
 	//we lock the page for atomicity.
 	vm_page_lock( vmp );
 
@@ -256,6 +259,7 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 			break;
 		case VM_FAULT_WRITE:
 			writeable = 1;
+			vmp->vmp_paddr |= VM_PAGE_DIRTY;
 			break;
 		default:
 			coremap_unwire( paddr );
