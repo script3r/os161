@@ -5,10 +5,10 @@
 #include <thread.h>
 #include <cpu.h>
 #include <vm.h>
+#include <vm/page.h>
 #include <current.h>
 #include <machine/coremap.h>
 #include <machine/tlb.h>
-
 struct coremap_stats		cm_stats;
 struct coremap_entry		*coremap;
 struct wchan			*wc_wire;
@@ -20,6 +20,7 @@ bool				coremap_initialized = false;
 extern struct spinlock		slk_steal;
 extern paddr_t firstpaddr;
 extern paddr_t lastpaddr;
+
 
 /**
  * initialize the statistics given the first and last physical addresses
@@ -198,14 +199,75 @@ find_pageable_page( void ) {
 
 static
 void
-do_evict( int ix ) {
-	(void)ix;
+coremap_evict( int ix_cme ) {
+	struct vm_page		*victim;
+	struct tlbshootdown	tlb_shootdown;
+
+	COREMAP_IS_LOCKED();
+
+	//the coremap entry must have a virtual page associated with it.
+	KASSERT( coremap[ix_cme].cme_page != NULL );
+	KASSERT( coremap[ix_cme].cme_alloc == 1 );
+	KASSERT( coremap_is_pageable( ix_cme ) );
+
+	
+	//get the victim.
+	victim = coremap[ix_cme].cme_page;
+	coremap[ix_cme].cme_wired = 1;
+
+	//if there's a live tlb mapping ...
+	if( coremap[ix_cme].cme_tlb_ix != -1 ) {
+		//if it is outside of our jurisdiction ...
+		if( coremap[ix_cme].cme_cpu != curcpu->c_number ) {
+			//request a shootdown from the appropriate cpu.
+			tlb_shootdown.ts_tlb_ix = coremap[ix_cme].cme_tlb_ix;
+			tlb_shootdown.ts_cme_ix = ix_cme;
+
+			//send the shootdown.
+			ipi_tlbshootdown_by_num( coremap[ix_cme].cme_cpu, &tlb_shootdown );
+			
+			//wait until the shootdown is complete.
+			while( coremap[ix_cme].cme_tlb_ix != -1 )
+				tlb_shootdown_wait();
+		}
+		else {
+			//we can just handle the request ourselves.
+			tlb_invalidate( coremap[ix_cme].cme_tlb_ix );
+		}
+		
+		KASSERT( coremap[ix_cme].cme_tlb_ix == -1 );
+		KASSERT( coremap[ix_cme].cme_cpu == 0 );
+	}
+
+	//prepare to swap out.
+	UNLOCK_COREMAP();
+	
+	//evict the page from memory.
+	vm_page_evict( victim );
+
+	//get the coremap lock again.
+	LOCK_COREMAP();
+	
+	//make the coremap entry available.
+	coremap[ix_cme].cme_wired = 0;
+	coremap[ix_cme].cme_page = NULL;
+	coremap[ix_cme].cme_alloc = 0;
+	
+	//update the stats.
+	--cm_stats.cms_upages;
+	++cm_stats.cms_free;
+
+	//ensure coremap integrity.
+	coremap_ensure_integrity();
+	
+	//we just unwired a page, perhaps someone was waiting for it.
+	wchan_wakeall( wc_wire );
 }
 
 
 static
 int
-do_page_replace( void ) {
+coremap_page_replace( void ) {
 	int		ix;
 	
 	COREMAP_IS_LOCKED();
@@ -215,7 +277,7 @@ do_page_replace( void ) {
 	
 	//if we need to evict it ... then do it.
 	if( !coremap_is_free( ix ) ) 
-		do_evict( ix );
+		coremap_evict( ix );
 	
 	return ix;
 }
@@ -258,7 +320,7 @@ coremap_alloc_single( struct vm_page *vmp, bool wired ) {
 
 	//if we are not in an interrupt, we simply try to evict a page.
 	if( ix < 0 && curthread != NULL && !curthread->t_in_interrupt )
-		ix = do_page_replace();
+		ix = coremap_page_replace();
 	
 
 	//if the index is still negative, it means that
@@ -379,7 +441,7 @@ coremap_alloc_multipages( int npages ) {
 		if( coremap[i].cme_alloc ) {
 			//if we can evict, oh well, then just do it.
 			if( curthread != NULL && !curthread->t_in_interrupt ) {
-				do_evict( i );
+				coremap_evict( i );
 			}
 			else {
 				//if we are here, we can't evict a page.

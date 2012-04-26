@@ -1161,6 +1161,14 @@ ipi_broadcast(int code)
 }
 
 void
+ipi_tlbshootdown_by_num( unsigned cpunum, const struct tlbshootdown *mapping ) {
+	struct cpu	*target;
+
+	target = cpuarray_get( &allcpus, cpunum );
+	ipi_tlbshootdown( target, mapping );
+}
+
+void
 ipi_tlbshootdown(struct cpu *target, const struct tlbshootdown *mapping)
 {
 	int n;

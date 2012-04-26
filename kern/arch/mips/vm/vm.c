@@ -9,6 +9,7 @@
 #include <current.h>
 #include <machine/coremap.h>
 #include <vm.h>
+#include <vm/swap.h>
 #include <addrspace.h>
 #include <machine/tlb.h>
 
@@ -28,6 +29,9 @@ vm_bootstrap( void ) {
 	giant_paging_lock = lock_create( "giant_paging_lock" );
 	if( giant_paging_lock == NULL ) 
 		panic( "vm_bootstrap: could not create giant_paging_lock." );
+
+	//make sure to bootstrap our swap.
+	swap_bootstrap();
 }
 
 int

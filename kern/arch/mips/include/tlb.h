@@ -66,6 +66,7 @@ void		tlb_clear(void);
 void		tlb_invalidate_coremap_entry( unsigned );
 int		tlb_get_free_slot(void);
 int		tlb_evict(void);
+void		tlb_shootdown_wait( void );
 
 /*
  * TLB entry fields.

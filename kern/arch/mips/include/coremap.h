@@ -47,6 +47,6 @@ extern struct coremap_entry		*coremap;
 extern struct spinlock			slk_coremap;
 extern struct wchan			*wc_wire;
 extern struct coremap_stats		cm_stats;
-
+extern struct wchan			*wc_shootdown;
 
 #endif

@@ -231,8 +231,6 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 
 	(void) as;
 
-	KASSERT( fault_vaddr & PAGE_FRAME );
-
 	//we lock the page for atomicity.
 	vm_page_lock( vmp );
 
@@ -273,4 +271,28 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 	//unlock the page.
 	vm_page_unlock( vmp );
 	return 0;
+}
+
+/**
+ * evict the page from core.
+ */
+void
+vm_page_evict( struct vm_page *victim ) {
+	off_t		swap_addr;
+
+	//lock the page.
+	vm_page_lock( victim );
+
+	//allocate swap space.
+	swap_addr = swap_alloc( );
+
+	//unlock and swap out.
+	vm_page_unlock( victim );
+	swap_out( victim->vmp_paddr & PAGE_FRAME, swap_addr );
+	
+	//update the page information.
+	vm_page_lock( victim );
+	victim->vmp_swapaddr = swap_addr;
+	victim->vmp_paddr = INVALID_PADDR;
+	vm_page_unlock( victim );
 }

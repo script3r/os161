@@ -61,8 +61,11 @@ struct cpu {
 	struct threadlist c_zombies;	/* List of exited threads */
 	unsigned c_hardclocks;		/* Counter of hardclock() calls */
 
+	/**
+ 	 * ASST3 related
+	 */
 	struct addrspace		*c_lastas;	/* last as loaded inside the tlb of this cpu */
-
+	
 	/*
 	 * Accessed by other cpus.
 	 * Protected by the runqueue lock.
@@ -168,8 +171,7 @@ void cpu_halt(void);
 void ipi_send(struct cpu *target, int code);
 void ipi_broadcast(int code);
 void ipi_tlbshootdown(struct cpu *target, const struct tlbshootdown *mapping);
-
 void interprocessor_interrupt(void);
 
-
+void	ipi_tlbshootdown_by_num( unsigned, const struct tlbshootdown *);
 #endif /* _CPU_H_ */
