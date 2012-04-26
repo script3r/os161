@@ -37,6 +37,7 @@
 #include <array.h>
 #include <cpu.h>
 #include <machine/coremap.h>
+#include <machine/tlb.h>
 #include <current.h>
 
 /*

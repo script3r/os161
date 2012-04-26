@@ -60,6 +60,13 @@ void tlb_write(uint32_t entryhi, uint32_t entrylo, uint32_t index);
 void tlb_read(uint32_t *entryhi, uint32_t *entrylo, uint32_t index);
 int tlb_probe(uint32_t entryhi, uint32_t entrylo);
 
+void		tlb_unmap( vaddr_t );
+void		tlb_invalidate( int );
+void		tlb_clear(void);
+void		tlb_invalidate_coremap_entry( unsigned );
+int		tlb_get_free_slot(void);
+int		tlb_evict(void);
+
 /*
  * TLB entry fields.
  *

@@ -111,10 +111,6 @@ void		vm_map( vaddr_t, paddr_t, int );
 void		vm_unmap( vaddr_t );
 
 
-void		tlb_unmap( vaddr_t );
-void		tlb_invalidate( int );
-void		tlb_clear(void);
-void		tlb_invalidate_coremap_entry( unsigned );
 /*
  * TLB shootdown bits.
  *
