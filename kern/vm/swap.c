@@ -126,6 +126,26 @@ swap_alloc() {
 	return ix * PAGE_SIZE;
 }
 
+void
+swap_dealloc( off_t offset ) {
+	int		ix;
+	
+	//the index is simply the offset divided by page size.
+	ix = offset / PAGE_SIZE;
+	
+	//lock the swap.
+	LOCK_SWAP();
+	
+	//mark this index as unused.
+	bitmap_unmark( bm_sw, ix );
+	
+	//update stats.
+	++ss_sw.ss_free;
+	--ss_sw.ss_used;
+	
+	//unlock the swap.
+	UNLOCK_SWAP();
+}
 
 void
 swap_in( paddr_t target, off_t source ) {

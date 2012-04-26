@@ -105,13 +105,18 @@ vm_page_destroy( struct vm_page *vmp ) {
 		vm_page_unlock( vmp );
 	}
 
+	//release the swap space if it exists.
+	if( vmp->vmp_swapaddr != INVALID_SWAPADDR )
+		swap_dealloc( vmp->vmp_swapaddr );
+
 	spinlock_cleanup( &vmp->vmp_slk );
 	kfree( vmp );
 }
 
 void
 vm_page_lock( struct vm_page *vmp ) {
-	spinlock_acquire( &vmp->vmp_slk );
+	if( !spinlock_do_i_hold( &vmp->vmp_slk ) )
+		spinlock_acquire( &vmp->vmp_slk );
 }
 
 void
@@ -243,7 +248,15 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 		coremap_wire( paddr );	
 	} 
 	else {
-		panic( "paging is not complete yet." );
+		KASSERT( vmp->vmp_swapaddr != INVALID_SWAPADDR );
+		paddr = coremap_alloc( vmp, true );
+		if( paddr == INVALID_PADDR ) {
+			vm_page_unlock( vmp );
+			return ENOMEM;
+		}
+			
+		swap_in( paddr, vmp->vmp_swapaddr );
+		vmp->vmp_paddr = paddr;
 	}
 
 	//which fault happened?
@@ -278,21 +291,19 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
  */
 void
 vm_page_evict( struct vm_page *victim ) {
-	off_t		swap_addr;
-
 	//lock the page.
 	vm_page_lock( victim );
 
 	//allocate swap space.
-	swap_addr = swap_alloc( );
-
+	if( victim->vmp_swapaddr == INVALID_SWAPADDR )
+		victim->vmp_swapaddr = swap_alloc( );
+	
 	//unlock and swap out.
 	vm_page_unlock( victim );
-	swap_out( victim->vmp_paddr & PAGE_FRAME, swap_addr );
+	swap_out( victim->vmp_paddr & PAGE_FRAME, victim->vmp_swapaddr );
 	
 	//update the page information.
 	vm_page_lock( victim );
-	victim->vmp_swapaddr = swap_addr;
 	victim->vmp_paddr = INVALID_PADDR;
 	vm_page_unlock( victim );
 }

@@ -5,7 +5,7 @@
 
 #define INVALID_SWAPADDR 0
 #define SWAP_DEVICE "lhd0raw:"
-#define SWAP_MIN_FACTOR 2
+#define SWAP_MIN_FACTOR 20
 
 #define LOCK_SWAP() (lock_acquire(lk_sw))
 #define UNLOCK_SWAP() (lock_release(lk_sw))
@@ -27,5 +27,6 @@ void		swap_bootstrap( void );
 off_t		swap_alloc(void);
 void		swap_in( paddr_t, off_t );
 void		swap_out( paddr_t, off_t );
+void		swap_dealloc( off_t );
 
 #endif
