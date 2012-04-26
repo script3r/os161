@@ -183,7 +183,10 @@ tlb_invalidate( int ix_tlb ) {
 	//read the tlb entry given by ix_tlb.
 	tlb_read( &tlb_hi, &tlb_lo, ix_tlb );
 
-	//check to see that the entry retrieved is valid.
+	//invalidate it.
+	tlb_write( TLBHI_INVALID( ix_tlb ), TLBLO_INVALID() , ix_tlb );
+
+	//check to see that the entry retrieved was valid.
 	if( tlb_lo & TLBLO_VALID ) {
 		//get the physical address mapped to it.
 		paddr = tlb_lo & TLBLO_PPAGE;
@@ -191,18 +194,12 @@ tlb_invalidate( int ix_tlb ) {
 		//convert to coremap index.
 		ix_cme = PADDR_TO_COREMAP( paddr );
 	
-		//invalidate the entry.
-		tlb_write( TLBHI_INVALID( ix_tlb ), TLBLO_INVALID() , ix_tlb );
-
 		KASSERT(coremap[ix_cme].cme_tlb_ix == ix_tlb);
 		KASSERT(coremap[ix_cme].cme_cpu == curcpu->c_number);
 		
 		coremap[ix_cme].cme_tlb_ix = -1;
 		coremap[ix_cme].cme_cpu = 0;
 		coremap[ix_cme].cme_referenced = 0;
-
-	} else {
-		tlb_write( TLBHI_INVALID( ix_tlb ), TLBLO_INVALID() , ix_tlb );
 	}
 }
 

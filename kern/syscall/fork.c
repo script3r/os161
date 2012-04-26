@@ -51,6 +51,9 @@ fork_child_return( void *v_args, unsigned long not_used ) {
 	KASSERT( curthread->t_addrspace == NULL );
 	curthread->t_addrspace = args->as_source;
 	
+	//activate it.
+	as_activate( curthread->t_addrspace );
+
 	//copy from kernel stack into user stack.
 	memcpy( &tf, args->tf, sizeof( struct trapframe ) );
 
