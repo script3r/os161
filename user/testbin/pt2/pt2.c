@@ -4,16 +4,20 @@
 #include <stdlib.h>
 
 int main( int argc, char *argv[] ) {
-	pid_t		pid;
-	pid_t		mypid;
+	pid_t		pid = -1;
+	pid_t		mypid = -1;
 
 	(void)argc;
 	(void)argv;
 	
+	mypid = getpid();
 	pid = fork();
 	if( pid == 0 ) {
 		mypid = getpid();
-		printf( "I'm the child with pid %d\n", mypid );
+		printf( "I'm the child." );
+	} 
+	else {
+		printf( "I'm the parent. %d\n", mypid );
 	}
 
 	return 0;

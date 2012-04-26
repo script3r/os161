@@ -293,7 +293,7 @@ coremap_clone( paddr_t source, paddr_t target ) {
 	vsource = PADDR_TO_KVADDR( source );
 	vtarget = PADDR_TO_KVADDR( target );
 
-	memcpy( (char *) vtarget, (char *) vsource, PAGE_SIZE );
+	memmove( (void*)vtarget, (const void*)vsource, PAGE_SIZE );
 }
 
 /**

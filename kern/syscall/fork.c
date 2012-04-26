@@ -48,6 +48,7 @@ fork_child_return( void *v_args, unsigned long not_used ) {
 	curthread->td_proc = args->td_proc;
 	
 	//set the current addrspace.
+	KASSERT( curthread->t_addrspace == NULL );
 	curthread->t_addrspace = args->as_source;
 	
 	//copy from kernel stack into user stack.
@@ -56,9 +57,6 @@ fork_child_return( void *v_args, unsigned long not_used ) {
 	//clean-up the arguments passed by fork().
 	kfree( args->tf );
 	kfree( args );
-	
-	//tell our parent we are OK.
-	V( curthread->td_proc->p_sem );
 	
 	//off we go to usermode.
 	mips_usermode( &tf );
@@ -157,9 +155,6 @@ sys_fork( struct trapframe *tf, int *retval ) {
 		return err;
 	}
 	
-
-	//wait for the child to tell us things are ok.
-	P( p_new->p_sem );
 
 	//parent returns with no errors.
 	*retval = pid;

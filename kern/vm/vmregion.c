@@ -31,7 +31,7 @@ vm_region_create( size_t npages ) {
 	}
 
 	//set the base address to point to an invalid virtual address.
-	vmr->vmr_base = INVALID_VADDR;
+	vmr->vmr_base = 0xdeadbeef;
 
 	//adjust the array to hold npages.
 	res = vm_page_array_setsize( vmr->vmr_pages, npages );
@@ -57,6 +57,7 @@ vm_region_destroy( struct vm_region *vmr ) {
 	//destroy the pages associated with the region.
 	vm_page_array_destroy( vmr->vmr_pages );
 
+	//free the memory
 	kfree( vmr );
 }
 

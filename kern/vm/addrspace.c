@@ -121,6 +121,7 @@ as_destroy(struct addrspace *as)
 	//destroy the array.
 	vm_region_array_setsize( as->as_regions, 0 );
 	vm_region_array_destroy( as->as_regions );
+
 	kfree( as );
 }
 
@@ -128,18 +129,16 @@ void
 as_activate(struct addrspace *as)
 {
 	KASSERT( as != NULL || curthread->t_addrspace == as );
-
-	LOCK_COREMAP();
-	
 	//if the given addrspace is different the one we may have tlb entries for
 	if( as != curcpu->c_lastas ) {
+		LOCK_COREMAP();
 		//set the given addrspace to be the last one
 		curcpu->c_lastas = as;
-		
 		//clear the tlb entry.
-		tlb_clear();
+		tlb_clear();	
+
+		UNLOCK_COREMAP();
 	}
-	UNLOCK_COREMAP();
 }
 
 static 

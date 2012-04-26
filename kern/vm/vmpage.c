@@ -32,7 +32,7 @@ vm_page_new( struct vm_page **vmp_ret, paddr_t *paddr_ret ) {
 	vm_page_lock( vmp );
 		
 	//adjust the physical address, and mark the page dirty.
-	vmp->vmp_paddr = paddr | VM_PAGE_DIRTY;
+	vmp->vmp_paddr = paddr;
 
 	*vmp_ret = vmp;
 	*paddr_ret = paddr;
@@ -250,16 +250,12 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 
 	//which fault happened?
 	switch( fault_type ) {
-		case VM_FAULT_READONLY:
-			writeable = 1;
-			vmp->vmp_paddr |= VM_PAGE_DIRTY;
-			break;
 		case VM_FAULT_READ:	
 			writeable = 0;
 			break;
 		case VM_FAULT_WRITE:
+		case VM_FAULT_READONLY:
 			writeable = 1;
-			vmp->vmp_paddr |= VM_PAGE_DIRTY;
 			break;
 		default:
 			coremap_unwire( paddr );
