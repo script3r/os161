@@ -49,9 +49,6 @@ fork_child_return( void *v_args, unsigned long not_used ) {
 	
 	//set the current addrspace.
 	curthread->t_addrspace = args->as_source;
-
-	//active its addrspace.
-	as_activate( curthread->t_addrspace );
 	
 	//copy from kernel stack into user stack.
 	memcpy( &tf, args->tf, sizeof( struct trapframe ) );
@@ -62,7 +59,7 @@ fork_child_return( void *v_args, unsigned long not_used ) {
 	
 	//tell our parent we are OK.
 	V( curthread->td_proc->p_sem );
-
+	
 	//off we go to usermode.
 	mips_usermode( &tf );
 }

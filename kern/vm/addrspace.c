@@ -35,6 +35,7 @@
 #include <vm/region.h>
 #include <vm/page.h>
 #include <array.h>
+#include <cpu.h>
 #include <machine/coremap.h>
 #include <current.h>
 
@@ -91,6 +92,13 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 			as_destroy( newas );
 			return result;
 		}
+
+		result = vm_region_array_add( newas->as_regions, newvmr, NULL );
+		if( result ) {
+			vm_region_destroy( newvmr );
+			as_destroy( newas );
+			return result;
+		}
 	}
 	
 	*ret = newas;
@@ -120,8 +128,17 @@ void
 as_activate(struct addrspace *as)
 {
 	KASSERT( as != NULL || curthread->t_addrspace == as );
+
 	LOCK_COREMAP();
-	tlb_clear();
+	
+	//if the given addrspace is different the one we may have tlb entries for
+	if( as != curcpu->c_lastas ) {
+		//set the given addrspace to be the last one
+		curcpu->c_lastas = as;
+		
+		//clear the tlb entry.
+		tlb_clear();
+	}
 	UNLOCK_COREMAP();
 }
 
@@ -175,8 +192,8 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t sz,
 	vaddr &= PAGE_FRAME;	
 	
 	//round up the size so it is a multiple of the page size.
-	sz = ROUNDUP( sz, PAGE_SIZE );
-	
+	sz = ROUNDUP(sz, PAGE_SIZE);
+
 	//if there's an overlap, well we have a problem.
 	if( as_overlaps_region( as, sz, vaddr ) )
 		return EINVAL;

@@ -271,8 +271,11 @@ coremap_alloc_single( struct vm_page *vmp, bool wired ) {
 	//mark the page we just got as allocated.
 	//and if we had a virtual page associated, then store it inside the coremap.
 	mark_pages_as_allocated( ix, 1, wired, ( vmp == NULL ) );
-	paddr = COREMAP_TO_PADDR( ix );
+	
+	if( vmp != NULL )
+		coremap[ix].cme_page = vmp;
 
+	paddr = COREMAP_TO_PADDR( ix );
 	UNLOCK_COREMAP();
 	return paddr;
 }
@@ -290,7 +293,7 @@ coremap_clone( paddr_t source, paddr_t target ) {
 	vsource = PADDR_TO_KVADDR( source );
 	vtarget = PADDR_TO_KVADDR( target );
 
-	memcpy( (char *) vsource, (char *) vtarget, PAGE_SIZE );
+	memcpy( (char *) vtarget, (char *) vsource, PAGE_SIZE );
 }
 
 /**

@@ -61,6 +61,8 @@ struct cpu {
 	struct threadlist c_zombies;	/* List of exited threads */
 	unsigned c_hardclocks;		/* Counter of hardclock() calls */
 
+	struct addrspace		*c_lastas;	/* last as loaded inside the tlb of this cpu */
+
 	/*
 	 * Accessed by other cpus.
 	 * Protected by the runqueue lock.
