@@ -16,17 +16,23 @@ vm_region_create( size_t npages ) {
 	int 			res;
 	struct vm_region	*vmr;
 	unsigned		i;
+	int			err;
+
+	//see if we can reserve npages of swap first.
+	err = swap_reserve( npages );
+	if( err )
+		return NULL;
 
 	//attempt to create the vm_region
 	vmr = kmalloc( sizeof( struct vm_region ) );
 	if( vmr == NULL )
 		return NULL;
 
-	
 	//create the vm_pages.
 	vmr->vmr_pages = vm_page_array_create();
 	if( vmr->vmr_pages == NULL ) {
 		kfree( vmr );
+		swap_unreserve( npages );
 		return NULL;
 	}
 
@@ -38,13 +44,13 @@ vm_region_create( size_t npages ) {
 	if( res ) {
 		vm_page_array_destroy( vmr->vmr_pages );
 		kfree( vmr );
+		swap_unreserve( npages );
 		return NULL;
 	}
 
 	//initialize all the pages to NULL.
-	for( i = 0; i < npages; ++i ) {
+	for( i = 0; i < npages; ++i )
 		vm_page_array_set( vmr->vmr_pages, i, NULL );
-	}
 
 	return vmr;
 }
@@ -69,8 +75,10 @@ vm_region_shrink( struct vm_region *vmr, unsigned npages ) {
 
 	for( i = npages; i < vm_page_array_num( vmr->vmr_pages ); ++i ) {
 		vmp = vm_page_array_get( vmr->vmr_pages, i );
-		if( vmp == NULL )
+		if( vmp == NULL ) {
+			swap_unreserve( 1 );
 			continue;
+		}
 
 		//unmap tlb entries.
 		vm_unmap( vmr->vmr_base + PAGE_SIZE * i );
@@ -95,10 +103,17 @@ vm_region_expand( struct vm_region *vmr, unsigned npages ) {
 	if( new_pages == 0 )
 		return 0;
 
-	//attempt to rezize the vmr_pages array.
-	res = vm_page_array_setsize( vmr->vmr_pages, npages );
+	//see if we can back this loan with storage.
+	res = swap_reserve( new_pages );
 	if( res )
 		return res;
+
+	//attempt to rezize the vmr_pages array.
+	res = vm_page_array_setsize( vmr->vmr_pages, npages );
+	if( res ) {
+		swap_unreserve( new_pages );
+		return res;
+	}
 
 
 	//initialize each of the newly created vm_pages to NULL.

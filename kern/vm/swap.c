@@ -24,31 +24,25 @@ struct lock 		*giant_paging_lock;
 
 static
 bool
-swap_device_suficient( size_t ram_size ) {
+swap_device_suficient( size_t ram_size, size_t *swap_size ) {
 	size_t		min_size;
 	struct stat	stat;
 
 	min_size = ram_size * SWAP_MIN_FACTOR;
 	VOP_STAT( vn_sw, &stat );
 	
+	*swap_size = stat.st_size;
 	return stat.st_size >= min_size;
 }
 
 static
 void
-swap_init_stats( size_t ram_size ) {
-	ss_sw.ss_total = ram_size / PAGE_SIZE;
+swap_init_stats( size_t swap_size ) {
+	ss_sw.ss_total = swap_size / PAGE_SIZE;
 	ss_sw.ss_free = ss_sw.ss_total;
 	ss_sw.ss_reserved = 0;
-	ss_sw.ss_used = 0;
 }
 
-
-static
-void
-swap_ensure_integrity() {
-	KASSERT( ss_sw.ss_total == ss_sw.ss_free + ss_sw.ss_reserved + ss_sw.ss_used );
-}
 
 static
 void
@@ -77,6 +71,7 @@ swap_bootstrap() {
 	char		sdevice[64];
 	int		res;
 	size_t		ram_size;
+	size_t		swap_size;
 
 	//get the ram size.
 	ram_size = ROUNDUP( mainbus_ramsize(), PAGE_SIZE );
@@ -90,11 +85,11 @@ swap_bootstrap() {
 		panic( "swap_bootstrap: could not open swapping partition." );
 	
 	//make sure it is of suficient size.
-	if( !swap_device_suficient( ram_size ) )
+	if( !swap_device_suficient( ram_size, &swap_size ) )
 		panic( "swap_bootstrap: the swap partition is not large enough." );
 	
 	//init the stats.
-	swap_init_stats( ram_size );
+	swap_init_stats( swap_size );
 
 	//create the bitmap to manage the swap partition.
 	bm_sw = bitmap_create( ss_sw.ss_total );
@@ -114,7 +109,6 @@ swap_bootstrap() {
 
 	//update stats.
 	--ss_sw.ss_free;
-	++ss_sw.ss_used;
 }
 
 off_t		
@@ -124,14 +118,14 @@ swap_alloc() {
 
 	LOCK_SWAP();
 	res = bitmap_alloc( bm_sw, &ix );
-	if( res )
-		panic( "swap_alloc: swap partition is full!" );
+	if( res ) {
+		UNLOCK_SWAP();
+		return INVALID_SWAPADDR;
+	}	
 
 	//update stats
 	--ss_sw.ss_free;
-	++ss_sw.ss_used;
 
-	swap_ensure_integrity();
 	UNLOCK_SWAP();
 
 	return ix * PAGE_SIZE;
@@ -152,7 +146,6 @@ swap_dealloc( off_t offset ) {
 	
 	//update stats.
 	++ss_sw.ss_free;
-	--ss_sw.ss_used;
 	
 	//unlock the swap.
 	UNLOCK_SWAP();
@@ -166,4 +159,40 @@ swap_in( paddr_t target, off_t source ) {
 void
 swap_out( paddr_t source, off_t target ) {
 	swap_io( source, target, UIO_WRITE );
+}
+
+int
+swap_reserve( unsigned npages ) {
+	LOCK_SWAP();
+
+	KASSERT( ss_sw.ss_free <= ss_sw.ss_total );
+	KASSERT( ss_sw.ss_reserved <= ss_sw.ss_free );
+	
+	//if we don't have enough free pages
+	if( ss_sw.ss_free - ss_sw.ss_reserved < npages ) {
+		UNLOCK_SWAP();
+		return ENOSPC;
+	}
+
+	//update the number of reserved pages.
+	ss_sw.ss_reserved += npages;
+
+	UNLOCK_SWAP();
+	return 0;
+}
+
+void
+swap_unreserve( unsigned npages ) {
+	LOCK_SWAP();
+	
+	KASSERT( ss_sw.ss_free <= ss_sw.ss_total );
+	KASSERT( ss_sw.ss_reserved <= ss_sw.ss_free );
+	
+	//make sure there are at lest npages that are reserved.
+	KASSERT( npages <= ss_sw.ss_reserved );
+	
+	//unreserved.
+	ss_sw.ss_reserved -= npages;
+
+	UNLOCK_SWAP();
 }

@@ -190,8 +190,13 @@ static
 int
 find_pageable_page( void ) {
 	uint32_t	i;
+	uint32_t	start;
 
-	for( i = 0; i < cm_stats.cms_total_frames; ++i )
+	start = random() % cm_stats.cms_total_frames;
+	for( i = start; i < cm_stats.cms_total_frames; ++i )
+		if( coremap_is_pageable( i ) )
+			return i;
+	for( i = 0; i < start; ++i )
 		if( coremap_is_pageable( i ) )
 			return i;
 
@@ -200,7 +205,7 @@ find_pageable_page( void ) {
 }
 
 static
-void
+bool
 coremap_evict( int ix_cme ) {
 	struct vm_page		*victim;
 	struct tlbshootdown	tlb_shootdown;
@@ -245,11 +250,16 @@ coremap_evict( int ix_cme ) {
 	UNLOCK_COREMAP();
 	
 	//evict the page from memory.
-	vm_page_evict( victim );
+	if( !vm_page_evict( victim ) )
+		return false;
 
 	//get the coremap lock again.
 	LOCK_COREMAP();
 	
+	KASSERT( coremap[ix_cme].cme_wired == 1 );
+	KASSERT( coremap[ix_cme].cme_page == victim );
+	KASSERT( coremap[ix_cme].cme_alloc == 1 );
+
 	//make the coremap entry available.
 	coremap[ix_cme].cme_wired = 0;
 	coremap[ix_cme].cme_page = NULL;
@@ -264,6 +274,8 @@ coremap_evict( int ix_cme ) {
 	
 	//we just unwired a page, perhaps someone was waiting for it.
 	wchan_wakeall( wc_wire );
+
+	return true;
 }
 
 
@@ -274,14 +286,20 @@ coremap_page_replace( void ) {
 	
 	COREMAP_IS_LOCKED();
 
-	//find a page that we could evict.
-	ix = find_pageable_page();
+	while( 1 ) {
+		//find a page that we could evict.
+		ix = find_pageable_page();
 	
-	//if we need to evict it ... then do it.
-	if( !coremap_is_free( ix ) ) 
-		coremap_evict( ix );
+		//if we need to evict it ... then do it.
+		if( !coremap_is_free( ix ) ) 
+			if( coremap_evict( ix ) )
+				return ix;
+
+		LOCK_COREMAP();
+	}
 	
-	return ix;
+	panic( "shouldn't be here." );
+	return -1;
 }
 
 static
@@ -299,6 +317,7 @@ coremap_alloc_single( struct vm_page *vmp, bool wired ) {
 	int				ix;
 	int				i;
 	paddr_t				paddr;
+	
 
 	//lock the coremap for atomicity.
 	LOCK_COREMAP();
@@ -328,7 +347,6 @@ coremap_alloc_single( struct vm_page *vmp, bool wired ) {
 	//if the index is still negative, it means that
 	//there's nothing to do anymore, we cannot grab a page.
 	if( ix < 0 ) {
-		//perhaps unlock here?
 		UNLOCK_COREMAP();
 		return INVALID_PADDR;
 	}

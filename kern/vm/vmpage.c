@@ -9,6 +9,7 @@
 #include <vm/page.h>
 #include <vm/region.h>
 #include <vm/swap.h>
+#include <current.h>
 #include <machine/coremap.h>
 
 static
@@ -21,6 +22,13 @@ vm_page_new( struct vm_page **vmp_ret, paddr_t *paddr_ret ) {
 	if( vmp == NULL )
 		return ENOMEM;
 	
+	//attempt to allocate swap space.
+	vmp->vmp_swapaddr = swap_alloc();
+	if( vmp->vmp_swapaddr == INVALID_SWAPADDR ) {
+		vm_page_destroy( vmp );
+		return ENOSPC;
+	}
+
 	//allocate a single coremap_entry 
 	paddr = coremap_alloc( vmp, true );
 	if( paddr == INVALID_PADDR ) {
@@ -242,6 +250,10 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 	//we lock the page for atomicity.
 	vm_page_lock( vmp );
 
+	//was someone trying to move it?
+	if( vmp->vmp_td != NULL )
+		vmp->vmp_td = NULL;
+
 	//get the physical address.
 	paddr = vmp->vmp_paddr & PAGE_FRAME;
 
@@ -254,8 +266,6 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 		swap_addr = vmp->vmp_swapaddr;
 		KASSERT( vmp->vmp_swapaddr != INVALID_SWAPADDR );
 
-		
-		//coremap_alloc acquires the global paging lock.
 		paddr = coremap_alloc( vmp, true );
 		if( paddr == INVALID_PADDR ) {
 			vm_page_unlock( vmp );
@@ -297,21 +307,34 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 /**
  * evict the page from core.
  */
-void
+bool
 vm_page_evict( struct vm_page *victim ) {
+	paddr_t		paddr;
+	off_t		swap_addr;
+
 	//lock the page.
 	vm_page_lock( victim );
-	
+	victim->vmp_td = curthread;
+
+	paddr = victim->vmp_paddr & PAGE_FRAME;
+
 	//allocate swap space.
-	if( victim->vmp_swapaddr == INVALID_SWAPADDR )
-		victim->vmp_swapaddr = swap_alloc();
+	KASSERT( victim->vmp_swapaddr != INVALID_SWAPADDR );
 	
+	swap_addr = victim->vmp_swapaddr;
+
 	//unlock and swap out.
 	vm_page_unlock( victim );
-	swap_out( victim->vmp_paddr & PAGE_FRAME, victim->vmp_swapaddr );
+	swap_out( paddr, swap_addr );
 	
+	if( victim->vmp_td != curthread )
+		return false;
+
 	//update the page information.
 	vm_page_lock( victim );
 	victim->vmp_paddr = INVALID_PADDR;
 	vm_page_unlock( victim );
+	
+	return true;
 }
+	

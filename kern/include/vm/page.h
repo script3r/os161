@@ -9,6 +9,7 @@ struct vm_page {
 	volatile paddr_t		vmp_paddr;	/* the current physical address of this page */
 	off_t				vmp_swapaddr;	/* offset into the swap partition */
 	struct spinlock			vmp_slk;	/* spinlock protecting the members */
+	struct thread			*vmp_td;	/* thread moving this page */
 };
 
 #define VM_PAGE_IN_CORE(vmp) (((vmp)->vmp_paddr & PAGE_FRAME) != INVALID_PADDR)
@@ -25,5 +26,5 @@ void			vm_page_wire( struct vm_page * );
 int			vm_page_clone( struct vm_page *, struct vm_page ** );
 int			vm_page_new_blank( struct vm_page ** );
 int			vm_page_fault( struct vm_page *, struct addrspace *, int fault_type, vaddr_t );
-void			vm_page_evict( struct vm_page * );
+bool			vm_page_evict( struct vm_page * );
 #endif
