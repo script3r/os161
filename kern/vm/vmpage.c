@@ -96,11 +96,14 @@ void
 vm_page_destroy( struct vm_page *vmp ) {
 	paddr_t		paddr;
 
+
 	vm_page_acquire( vmp );
+	KASSERT( vmp->vmp_in_transit == false );
+
 	paddr = vmp->vmp_paddr & PAGE_FRAME;
 	
 	//if the page is in core.
-	if( VM_PAGE_IN_CORE( vmp ) ) {
+	if( paddr != INVALID_PADDR ) {
 		//invalidate it
 		vmp->vmp_paddr = INVALID_PADDR;
 
@@ -249,9 +252,7 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 	paddr_t		paddr;
 	int		writeable;
 	off_t		swap_addr;
-	bool		need_transit;
 
-	need_transit = false;
 	(void) as;
 
 
@@ -268,6 +269,9 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 		vm_page_lock( vmp );
 	}
 		
+	//there's no need for transit anymore.
+	lock_release( lk_transit );
+
 	KASSERT( vmp->vmp_in_transit == false );
 
 	//get the physical address.
@@ -275,50 +279,34 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 
 	//if the page is in core
 	if( paddr != INVALID_PADDR ) {
-		//we don't need the transit lock.
-		lock_release( lk_transit );
-
 		//wire the coremap entry associated
 		coremap_wire( paddr );	
 	} 
 	else {
-		//we need to unlock the transit lock at the end.
-		need_transit = true;
-		
-		//mark the page as being in transit.
-		vmp->vmp_in_transit = true;
-	
 		swap_addr = vmp->vmp_swapaddr;
 		KASSERT( vmp->vmp_swapaddr != INVALID_SWAPADDR );
 		
-		//release the transit lock.
-		lock_release( lk_transit );
-
 		paddr = coremap_alloc( vmp, true );
 		if( paddr == INVALID_PADDR ) {
-			vmp->vmp_in_transit = false;
 			vm_page_unlock( vmp );
 			return ENOMEM;
 		}
 		
-		//unlock the page and transit.
+		//unlock the page.
 		vm_page_unlock( vmp );
 
 		//swap the page in.
 		swap_in( paddr, swap_addr );
 
-		//when we come back make sure nothing really hot changed.
+		//make sure the page address is still invalid.
 		KASSERT( vmp->vmp_paddr == INVALID_PADDR );
 		KASSERT( vmp->vmp_swapaddr == swap_addr );
-		KASSERT( vmp->vmp_in_transit );
 
 		//reacquire the locks.
-		lock_acquire( lk_transit );
 		vm_page_lock( vmp );
 
 		//update the physical address.
 		vmp->vmp_paddr = paddr;
-		vmp->vmp_in_transit = false;
 	}
 
 	//which fault happened?
@@ -333,7 +321,6 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 		default:
 			coremap_unwire( paddr );
 			vm_page_unlock( vmp );
-			lock_release( lk_transit );
 			return EINVAL;
 		
 	}
@@ -346,12 +333,6 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 
 	//unlock the page.
 	vm_page_unlock( vmp );
-
-	//release transit lock
-	if( need_transit ) {
-		cv_broadcast( cv_transit, lk_transit );
-		lock_release( lk_transit );
-	}
 
 	return 0;
 }
@@ -370,6 +351,8 @@ vm_page_evict( struct vm_page *victim ) {
 	//lock the page.
 	vm_page_lock( victim );
 	
+	KASSERT( victim->vmp_in_transit == false );
+
 	//mark the page as being in transit.
 	victim->vmp_in_transit = true;
 	paddr = victim->vmp_paddr & PAGE_FRAME;
