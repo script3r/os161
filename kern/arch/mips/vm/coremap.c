@@ -119,15 +119,13 @@ static
 bool
 coremap_is_free( int ix ) {
 	return !coremap[ix].cme_wired && 
-	       !coremap[ix].cme_alloc && 
-               !coremap[ix].cme_desired;
+	       !coremap[ix].cme_alloc;
 }
 
 static
 bool
 coremap_is_pageable( int ix ) {
 	return !coremap[ix].cme_wired &&
-	       !coremap[ix].cme_desired &&
 	       !coremap[ix].cme_kernel;
 
 }
@@ -418,24 +416,6 @@ mark_pages_as_allocated( int start, int num, bool wired, bool is_kernel ) {
 	
 }
 
-/**
- * Mark a range of pages as desired.
- * Coremap must be locked.
- */
-static
-void
-mark_pages_desiredness( int start, int num, bool desired ) {
-	int 		i;
-	
-	//make sure coremap is locked.
-	COREMAP_IS_LOCKED();
-
-	for( i = start; i < start + num; ++i ) {
-		KASSERT( !coremap[i].cme_desired );
-		coremap[i].cme_desired = ( desired ) ? 1 : 0;
-	}
-}
-
 static
 paddr_t
 coremap_alloc_multipages( int npages ) {
@@ -456,10 +436,6 @@ coremap_alloc_multipages( int npages ) {
 		return INVALID_PADDR;
 	}
 
-	//mark that range as desired, before we start evicting.
-	//otherwise, other processes may jump in.
-	mark_pages_desiredness( ix, npages, true );
-
 	//now, we evict those pages that need to be evicted.
 	for( i = ix; i < ix + npages; ++i ) {
 		if( coremap[i].cme_alloc ) {
@@ -468,9 +444,6 @@ coremap_alloc_multipages( int npages ) {
 				coremap_evict( i );
 			}
 			else {
-				//if we are here, we can't evict a page.
-				//therefore we mark our previous pages as undesired.
-				mark_pages_desiredness( ix, npages, false );
 				UNLOCK_COREMAP();
 				return INVALID_PADDR;
 			}

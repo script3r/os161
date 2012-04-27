@@ -10,6 +10,9 @@
 #define LOCK_SWAP() (lock_acquire(lk_sw))
 #define UNLOCK_SWAP() (lock_release(lk_sw))
 
+#define LOCK_PAGING_GIANT() (lock_acquire(giant_paging_lock))
+#define UNLOCK_PAGING_GIANT() (lock_release(giant_paging_lock))
+
 /**
  * holds statistics regarding swapping.
  * ss_total: total number of pages we can hold.

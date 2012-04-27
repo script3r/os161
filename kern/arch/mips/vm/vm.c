@@ -10,6 +10,7 @@
 #include <machine/coremap.h>
 #include <vm.h>
 #include <vm/swap.h>
+#include <vm/page.h>
 #include <addrspace.h>
 #include <machine/tlb.h>
 
@@ -26,6 +27,13 @@ vm_bootstrap( void ) {
 	
 	//make sure to bootstrap our swap.
 	swap_bootstrap();
+
+	//initialize transit locks.
+	lk_transit = lock_create( "lk_transit" );
+	cv_transit = cv_create( "cv_transit" );
+
+	if( lk_transit == NULL || cv_transit == NULL )
+		panic( "vm_bootstrap: could not initialize transit mechanism." );
 }
 
 int

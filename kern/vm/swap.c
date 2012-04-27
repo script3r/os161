@@ -12,6 +12,7 @@
 #include <addrspace.h>
 #include <vm.h>
 #include <vm/swap.h>
+#include <vm/page.h>
 #include <machine/coremap.h>
 #include <vfs.h>
 #include <vnode.h>
