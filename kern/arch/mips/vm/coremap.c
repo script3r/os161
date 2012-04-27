@@ -6,9 +6,11 @@
 #include <cpu.h>
 #include <vm.h>
 #include <vm/page.h>
+#include <vm/swap.h>
 #include <current.h>
 #include <machine/coremap.h>
 #include <machine/tlb.h>
+
 struct coremap_stats		cm_stats;
 struct coremap_entry		*coremap;
 struct wchan			*wc_wire;
@@ -204,7 +206,7 @@ coremap_evict( int ix_cme ) {
 	struct tlbshootdown	tlb_shootdown;
 
 	COREMAP_IS_LOCKED();
-
+	
 	//the coremap entry must have a virtual page associated with it.
 	KASSERT( coremap[ix_cme].cme_page != NULL );
 	KASSERT( coremap[ix_cme].cme_alloc == 1 );
@@ -326,6 +328,7 @@ coremap_alloc_single( struct vm_page *vmp, bool wired ) {
 	//if the index is still negative, it means that
 	//there's nothing to do anymore, we cannot grab a page.
 	if( ix < 0 ) {
+		//perhaps unlock here?
 		UNLOCK_COREMAP();
 		return INVALID_PADDR;
 	}
@@ -338,7 +341,9 @@ coremap_alloc_single( struct vm_page *vmp, bool wired ) {
 		coremap[ix].cme_page = vmp;
 
 	paddr = COREMAP_TO_PADDR( ix );
+
 	UNLOCK_COREMAP();
+
 	return paddr;
 }
 

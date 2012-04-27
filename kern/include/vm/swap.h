@@ -29,4 +29,6 @@ void		swap_in( paddr_t, off_t );
 void		swap_out( paddr_t, off_t );
 void		swap_dealloc( off_t );
 
+extern struct lock	*giant_paging_lock;
+
 #endif

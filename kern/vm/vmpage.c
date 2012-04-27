@@ -115,8 +115,7 @@ vm_page_destroy( struct vm_page *vmp ) {
 
 void
 vm_page_lock( struct vm_page *vmp ) {
-	if( !spinlock_do_i_hold( &vmp->vmp_slk ) )
-		spinlock_acquire( &vmp->vmp_slk );
+	spinlock_acquire( &vmp->vmp_slk );
 }
 
 void
@@ -160,13 +159,16 @@ vm_page_clone( struct vm_page *source, struct vm_page **target ) {
 			vm_page_destroy( vmp );
 			return ENOMEM;
 		}
-	
+
 		//swap in the contents located ins swap_addr into source_paddr.
 		swap_in( source_paddr, swap_addr );
 
 		//lock the source.
 		vm_page_lock( source );
-		
+
+		//make sure nobody paged-in this page.
+		KASSERT( (source->vmp_paddr & PAGE_FRAME) == INVALID_PADDR );
+
 		//adjust the physical address to reflect the 
 		//address that currently stores the swapped in content.
 		source->vmp_paddr = source_paddr;
@@ -233,6 +235,7 @@ int
 vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_t fault_vaddr ) {
 	paddr_t		paddr;
 	int		writeable;
+	off_t		swap_addr;
 
 	(void) as;
 
@@ -248,7 +251,11 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 		coremap_wire( paddr );	
 	} 
 	else {
+		swap_addr = vmp->vmp_swapaddr;
 		KASSERT( vmp->vmp_swapaddr != INVALID_SWAPADDR );
+
+		
+		//coremap_alloc acquires the global paging lock.
 		paddr = coremap_alloc( vmp, true );
 		if( paddr == INVALID_PADDR ) {
 			vm_page_unlock( vmp );
@@ -283,6 +290,7 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 
 	//unlock the page.
 	vm_page_unlock( vmp );
+
 	return 0;
 }
 
@@ -293,10 +301,10 @@ void
 vm_page_evict( struct vm_page *victim ) {
 	//lock the page.
 	vm_page_lock( victim );
-
+	
 	//allocate swap space.
 	if( victim->vmp_swapaddr == INVALID_SWAPADDR )
-		victim->vmp_swapaddr = swap_alloc( );
+		victim->vmp_swapaddr = swap_alloc();
 	
 	//unlock and swap out.
 	vm_page_unlock( victim );

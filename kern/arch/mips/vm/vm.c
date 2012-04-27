@@ -13,7 +13,6 @@
 #include <addrspace.h>
 #include <machine/tlb.h>
 
-struct lock 			*giant_paging_lock;
 struct spinlock			slk_steal = SPINLOCK_INITIALIZER;
 
 /**
@@ -25,11 +24,6 @@ vm_bootstrap( void ) {
 	//botstrap the coremap.
 	coremap_bootstrap();
 	
-	//create the giant paging lock.
-	giant_paging_lock = lock_create( "giant_paging_lock" );
-	if( giant_paging_lock == NULL ) 
-		panic( "vm_bootstrap: could not create giant_paging_lock." );
-
 	//make sure to bootstrap our swap.
 	swap_bootstrap();
 }
