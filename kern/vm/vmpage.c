@@ -327,6 +327,7 @@ vm_page_evict( struct vm_page *victim ) {
 	vm_page_unlock( victim );
 	swap_out( paddr, swap_addr );
 	
+	/* RACE CONDITION */
 	if( victim->vmp_td != curthread )
 		return false;
 

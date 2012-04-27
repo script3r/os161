@@ -129,6 +129,7 @@ coremap_is_pageable( int ix ) {
 	return !coremap[ix].cme_wired &&
 	       !coremap[ix].cme_desired &&
 	       !coremap[ix].cme_kernel;
+
 }
 
 static
