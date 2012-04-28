@@ -125,15 +125,8 @@ coremap_is_free( int ix ) {
 static
 bool
 coremap_is_pageable( int ix ) {
-	if( curcpu != NULL ) {
-		return !coremap[ix].cme_wired &&
-	       		!coremap[ix].cme_kernel &&
-			coremap[ix].cme_cpu == curcpu->c_number;
-	} else {
-		return !coremap[ix].cme_wired &&
-	       		!coremap[ix].cme_kernel;
-	}
-
+	return !coremap[ix].cme_wired &&
+	       !coremap[ix].cme_kernel;
 }
 
 static
@@ -558,19 +551,19 @@ coremap_free( paddr_t paddr, bool is_kernel ) {
 
 void
 vm_tlbshootdown( const struct tlbshootdown *ts ) {
-	int				i;
 	int				cme_ix;
 	int				tlb_ix;
 
 	LOCK_COREMAP();
 	
-	cme_ix = ts[i].ts_cme_ix;
-	tlb_ix = ts[i].ts_tlb_ix;
+	cme_ix = ts->ts_cme_ix;
+	tlb_ix = ts->ts_tlb_ix;
 
-	if( coremap[cme_ix].cme_tlb_ix == tlb_ix && coremap[cme_ix].cme_cpu == curcpu->c_number )
+	if( coremap[cme_ix].cme_tlb_ix == tlb_ix && coremap[cme_ix].cme_cpu == curcpu->c_number ) {
 		tlb_invalidate( tlb_ix );
+		wchan_wakeall( wc_shootdown );
+	}
 
-	wchan_wakeall( wc_shootdown );
 	UNLOCK_COREMAP();
 }
 
