@@ -125,8 +125,14 @@ coremap_is_free( int ix ) {
 static
 bool
 coremap_is_pageable( int ix ) {
-	return !coremap[ix].cme_wired &&
-	       !coremap[ix].cme_kernel;
+	if( curcpu != NULL ) {
+		return !coremap[ix].cme_wired &&
+	       		!coremap[ix].cme_kernel &&
+			coremap[ix].cme_cpu == curcpu->c_number;
+	} else {
+		return !coremap[ix].cme_wired &&
+	       		!coremap[ix].cme_kernel;
+	}
 
 }
 
@@ -285,20 +291,16 @@ coremap_page_replace( void ) {
 	
 	COREMAP_IS_LOCKED();
 
-	while( 1 ) {
-		//find a page that we could evict.
-		ix = find_pageable_page();
-	
-		//if we need to evict it ... then do it.
-		if( !coremap_is_free( ix ) ) 
-			if( coremap_evict( ix ) )
-				return ix;
+	//find a page that we could evict.
+	ix = find_pageable_page();
+	KASSERT( coremap[ix].cme_kernel == 0 );
+	KASSERT( coremap[ix].cme_wired == 0 );
 
-		LOCK_COREMAP();
-	}
-	
-	panic( "shouldn't be here." );
-	return -1;
+	//if we need to evict it ... then do it.
+	if( coremap[ix].cme_alloc != 0 ) 
+		coremap_evict( ix );
+
+	return ix;	
 }
 
 static
@@ -613,7 +615,6 @@ coremap_unwire( paddr_t	paddr ) {
 	unsigned 		cix;
 	
 	cix = PADDR_TO_COREMAP( paddr );
-
 	LOCK_COREMAP();
 	coremap[cix].cme_wired = 0;
 	wchan_wakeall( wc_wire );
@@ -626,4 +627,12 @@ coremap_zero( paddr_t paddr ) {
 
 	vaddr = PADDR_TO_KVADDR( paddr );
 	bzero( (char*)vaddr, PAGE_SIZE );
+}
+
+bool
+coremap_is_wired( paddr_t paddr ) {
+	unsigned		ix;
+
+	ix = PADDR_TO_COREMAP( paddr );
+	return coremap[ix].cme_wired != 0;
 }

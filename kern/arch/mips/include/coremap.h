@@ -42,6 +42,7 @@ void			coremap_clone( paddr_t, paddr_t );
 paddr_t			coremap_alloc( struct vm_page *, bool );
 void			coremap_free( paddr_t, bool );
 void			mark_pages_as_allocated( int, int, bool, bool);
+bool			coremap_is_wired( paddr_t );
 
 extern struct coremap_entry		*coremap;
 extern struct spinlock			slk_coremap;

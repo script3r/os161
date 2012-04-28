@@ -194,7 +194,7 @@ proc_destroy( struct proc *p ) {
 
 	//copy the pid for later used.
 	pid = p->p_pid;
-
+	
 	//destroy the cv
 	sem_destroy( p->p_sem );
 

@@ -28,7 +28,6 @@ int			vm_page_new_blank( struct vm_page ** );
 int			vm_page_fault( struct vm_page *, struct addrspace *, int fault_type, vaddr_t );
 bool			vm_page_evict( struct vm_page * );
 
-extern struct cv 	*cv_transit;
-extern struct lock	*lk_transit;
+extern struct wchan	*wc_transit;
 
 #endif
