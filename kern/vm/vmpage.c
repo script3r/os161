@@ -127,19 +127,18 @@ vm_page_destroy( struct vm_page *vmp ) {
 	if( vmp->vmp_swapaddr != INVALID_SWAPADDR )
 		swap_dealloc( vmp->vmp_swapaddr );
 
-	spinlock_cleanup( &vmp->vmp_slk );
-
+	lock_destroy( vmp->vmp_lk );
 	kfree( vmp );
 }
 
 void
 vm_page_lock( struct vm_page *vmp ) {
-	spinlock_acquire( &vmp->vmp_slk );
+	lock_acquire( vmp->vmp_lk );
 }
 
 void
 vm_page_unlock( struct vm_page *vmp ) {
-	spinlock_release( &vmp->vmp_slk );
+	lock_release( vmp->vmp_lk );
 }
 
 int
@@ -216,8 +215,12 @@ vm_page_create( ) {
 	if( vmp == NULL )
 		return NULL;
 	
-	spinlock_init( &vmp->vmp_slk );
-	
+	vmp->vmp_lk = lock_create( "vmp_lk" );
+	if( vmp->vmp_lk == NULL ) {
+		kfree( vmp );
+		return NULL;
+	}
+
 	//initialize both the physical address
 	//and swap address to be invalid.
 	vmp->vmp_paddr = INVALID_PADDR;
@@ -254,7 +257,6 @@ vm_page_new_blank( struct vm_page **ret ) {
 static
 void
 vm_page_wait_for_transit( struct vm_page *vmp ) {
-	KASSERT( spinlock_do_i_hold( &vmp->vmp_slk ) );
 	wchan_lock( wc_transit );
 	vm_page_unlock( vmp );
 	wchan_sleep( wc_transit );
@@ -269,7 +271,20 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 
 	(void) as;
 
-
+	//which fault happened?
+	switch( fault_type ) {
+		case VM_FAULT_READ:	
+			writeable = 0;
+			break;
+		case VM_FAULT_WRITE:
+		case VM_FAULT_READONLY:
+			writeable = 1;
+			break;
+		default:
+			return EINVAL;
+		
+	}
+	
 	//we lock the page for atomicity.
 	vm_page_lock( vmp );
 
@@ -291,16 +306,16 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 		swap_addr = vmp->vmp_swapaddr;
 		KASSERT( vmp->vmp_swapaddr != INVALID_SWAPADDR );
 		
+		//unlock the page while allocating.
+		vm_page_unlock( vmp );
+
+		//allocate memory.
 		paddr = coremap_alloc( vmp, true );
-		if( paddr == INVALID_PADDR ) {
-			vm_page_unlock( vmp );
+		if( paddr == INVALID_PADDR )
 			return ENOMEM;
-		}
+	
 		
 		KASSERT( coremap_is_wired( paddr ) );
-
-		//unlock the page.
-		vm_page_unlock( vmp );
 
 		//swap the page in.
 		swap_in( paddr, swap_addr );
@@ -316,21 +331,7 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 		vmp->vmp_paddr = paddr;
 	}
 
-	//which fault happened?
-	switch( fault_type ) {
-		case VM_FAULT_READ:	
-			writeable = 0;
-			break;
-		case VM_FAULT_WRITE:
-		case VM_FAULT_READONLY:
-			writeable = 1;
-			break;
-		default:
-			coremap_unwire( paddr );
-			vm_page_unlock( vmp );
-			return EINVAL;
-		
-	}
+
 
 	//map fault_vaddr into paddr with writeable flags.
 	vm_map( fault_vaddr, paddr, writeable );
@@ -347,12 +348,15 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 /**
  * evict the page from core.
  */
-bool
+void
 vm_page_evict( struct vm_page *victim ) {
 	paddr_t		paddr;
 	off_t		swap_addr;
 
-	//lock the page.
+	//coremap must be locked.
+	COREMAP_IS_LOCKED();
+
+	//lock the page while evicting.
 	vm_page_lock( victim );
 
 	paddr = victim->vmp_paddr & PAGE_FRAME;
@@ -360,26 +364,28 @@ vm_page_evict( struct vm_page *victim ) {
 
 	KASSERT( paddr != INVALID_PADDR );
 	KASSERT( victim->vmp_swapaddr != INVALID_SWAPADDR );
+	KASSERT( coremap_is_wired( paddr  ) );
 
 	//mark the page as being in transit.
 	victim->vmp_in_transit = true;
 
+	//unlock the coremap.
+	UNLOCK_COREMAP();
+
 	//unlock and swap out.
-	vm_page_unlock( victim );
 	swap_out( paddr, swap_addr );
 	
+	//lock it again.
+	LOCK_COREMAP();
+
 	//update the page information.
-	vm_page_lock( victim );
 	KASSERT( victim->vmp_in_transit );
 	KASSERT( (victim->vmp_paddr & PAGE_FRAME) == paddr );
 
 	victim->vmp_paddr = INVALID_PADDR;
 	victim->vmp_in_transit = false;
+
 	wchan_wakeall( wc_transit );
 	vm_page_unlock( victim );
-
-	wchan_wakeall( wc_transit );
-
-	return true;
 }
 	

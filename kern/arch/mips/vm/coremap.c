@@ -251,16 +251,9 @@ coremap_evict( int ix_cme ) {
 		KASSERT( coremap[ix_cme].cme_cpu == 0 );
 	}
 
-	//prepare to swap out.
-	UNLOCK_COREMAP();
-	
 	//evict the page from memory.
-	if( !vm_page_evict( victim ) )
-		return false;
+	vm_page_evict( victim );
 
-	//get the coremap lock again.
-	LOCK_COREMAP();
-	
 	KASSERT( coremap[ix_cme].cme_wired == 1 );
 	KASSERT( coremap[ix_cme].cme_page == victim );
 	KASSERT( coremap[ix_cme].cme_alloc == 1 );
