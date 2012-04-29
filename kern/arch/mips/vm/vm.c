@@ -32,7 +32,6 @@ vm_bootstrap( void ) {
 	wc_transit = wchan_create( "wc_transit" );
 	if( wc_transit == NULL )
 		panic( "vm_bootstrap: could not create wc_transit." );
-
 }
 
 int

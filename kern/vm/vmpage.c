@@ -89,9 +89,6 @@ vm_page_acquire( struct vm_page *vmp ) {
 		wired = paddr;
 		vm_page_lock( vmp );
 	}
-
-	if( paddr != INVALID_PADDR )
-	KASSERT( coremap_is_wired( paddr ) );
 }
 
 void
@@ -289,7 +286,7 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 	vm_page_lock( vmp );
 
 	//if our page is being swapped out by someone else ...
-	while( vmp->vmp_in_transit )
+	while( vmp->vmp_in_transit == true )
 		vm_page_wait_for_transit( vmp );
 		
 	KASSERT( vmp->vmp_in_transit == false );
