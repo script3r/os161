@@ -89,7 +89,6 @@ syscall(struct trapframe *tf)
 	int nextra;
 	bool handle64;
 
-
 	KASSERT(curthread != NULL);
 	KASSERT(curthread->t_curspl == 0);
 	KASSERT(curthread->t_iplhigh_count == 0);
@@ -194,8 +193,9 @@ syscall(struct trapframe *tf)
 		err = sys_execv( (userptr_t) tf->tf_a0, (userptr_t) tf->tf_a1 );
 		break;
 
-	    /* Add stuff here */
- 
+ 	  case SYS_sbrk:
+		err = sys_sbrk( (intptr_t) tf->tf_a0, (void*)&retval );
+		break;
 	    default:
 		kprintf("Unknown syscall %d\n", callno);
 		err = ENOSYS;

@@ -31,6 +31,7 @@
 #include <kern/errno.h>
 #include <lib.h>
 #include <addrspace.h>
+#include <proc.h>
 #include <vm.h>
 #include <vm/region.h>
 #include <vm/page.h>
@@ -64,6 +65,9 @@ as_create(void)
 		kfree( as );
 		return NULL;
 	}
+
+	//set the heap start.
+	as->as_heap_start = 0;
 
 	return as;
 }
@@ -210,14 +214,20 @@ as_define_region(struct addrspace *as, vaddr_t vaddr, size_t sz,
 		vm_region_destroy( vmr );
 		return res;
 	}
+
+	//if the new vaddr is larger then heap_size ..
+	if( vmr->vmr_base > as->as_heap_start && vaddr != USERSTACKBASE )
+		as->as_heap_start = vmr->vmr_base + sz;
+
 	return 0;
 }
 
 int
 as_prepare_load(struct addrspace *as)
 {
-	(void)as;
-	return 0;
+	return as_define_region( 
+		as, as->as_heap_start, 0, 1, 1, 0 
+	);
 }
 
 int

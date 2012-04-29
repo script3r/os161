@@ -7,6 +7,7 @@
 
 #define MAX_PROCESSES 64
 #define PROC_RESERVED_SPOT 0xcafebabe
+#define PROC_MAX_HEAP_PAGES 2048
 
 struct proc {
 	pid_t			p_pid;		/* pid of the process */

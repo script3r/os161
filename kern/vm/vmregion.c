@@ -195,7 +195,7 @@ vm_region_find_responsible( struct addrspace *as, vaddr_t vaddr ) {
 		
 		//if the virtual address is between bottom and top
 		//thats the vm_region we are looking for.
-		if( vaddr >= bottom && vaddr < top )
+		if( (vaddr >= bottom && vaddr < top ) || (vaddr == bottom && vaddr == top))
 			return vmr;
 	}
 	return NULL;

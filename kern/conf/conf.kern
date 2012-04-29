@@ -387,6 +387,7 @@ file	  syscall/_exit.c
 file	  syscall/waitpid.c
 file	  syscall/fork.c
 file	  syscall/execv.c
+file	  syscall/sbrk.c
 
 
 #IO

@@ -60,6 +60,7 @@ struct addrspace {
         paddr_t as_stackpbase;
 #else
 	struct vm_region_array		*as_regions;
+	vaddr_t				as_heap_start;
 #endif
 };
 

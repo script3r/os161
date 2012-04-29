@@ -80,6 +80,7 @@ void	sys__exit( int );
 int	sys_waitpid( int, userptr_t, int, int * );
 int	sys_fork( struct trapframe *, int * );
 int	sys_execv( userptr_t, userptr_t );
+int	sys_sbrk( intptr_t, void ** );
 
 /**
  * Kernel versions of the system calls.
