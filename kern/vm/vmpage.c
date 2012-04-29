@@ -331,7 +331,8 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 		vmp->vmp_paddr = paddr;
 	}
 
-
+	//the coremap entry must be wired before being mapped.
+	KASSERT( coremap_is_wired( paddr ) );
 
 	//map fault_vaddr into paddr with writeable flags.
 	vm_map( fault_vaddr, paddr, writeable );
@@ -353,9 +354,6 @@ vm_page_evict( struct vm_page *victim ) {
 	paddr_t		paddr;
 	off_t		swap_addr;
 
-	//coremap must be locked.
-	COREMAP_IS_LOCKED();
-
 	//lock the page while evicting.
 	vm_page_lock( victim );
 
@@ -363,24 +361,19 @@ vm_page_evict( struct vm_page *victim ) {
 	swap_addr = victim->vmp_swapaddr;
 
 	KASSERT( paddr != INVALID_PADDR );
-	KASSERT( victim->vmp_swapaddr != INVALID_SWAPADDR );
-	KASSERT( coremap_is_wired( paddr  ) );
+	KASSERT( swap_addr != INVALID_SWAPADDR );
+	KASSERT( coremap_is_wired( paddr ) );
 
 	//mark the page as being in transit.
 	victim->vmp_in_transit = true;
 
-	//unlock the coremap.
-	UNLOCK_COREMAP();
-
-	//unlock and swap out.
+	//swapout.
 	swap_out( paddr, swap_addr );
 	
-	//lock it again.
-	LOCK_COREMAP();
-
 	//update the page information.
 	KASSERT( victim->vmp_in_transit );
 	KASSERT( (victim->vmp_paddr & PAGE_FRAME) == paddr );
+	KASSERT( coremap_is_wired( paddr ) );
 
 	victim->vmp_paddr = INVALID_PADDR;
 	victim->vmp_in_transit = false;

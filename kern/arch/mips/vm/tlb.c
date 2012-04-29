@@ -91,11 +91,11 @@ tlb_invalidate( int ix_tlb ) {
 	
 		KASSERT(coremap[ix_cme].cme_tlb_ix == ix_tlb);
 		KASSERT(coremap[ix_cme].cme_cpu == curcpu->c_number);
-		
-		coremap[ix_cme].cme_tlb_ix = -1;
-		coremap[ix_cme].cme_cpu = 0;
-		coremap[ix_cme].cme_referenced = 0;
 	}
+
+	coremap[ix_cme].cme_tlb_ix = -1;
+	coremap[ix_cme].cme_cpu = 0;
+	coremap[ix_cme].cme_referenced = 0;
 }
 
 /**

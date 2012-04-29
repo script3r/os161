@@ -52,7 +52,7 @@ coremap_init_entry( unsigned int ix ) {
 	coremap[ix].cme_alloc = 0;
 	coremap[ix].cme_referenced = 0;
 	coremap[ix].cme_wired = 0;
-	coremap[ix].cme_tlb_ix = INVALID_TLB_IX;
+	coremap[ix].cme_tlb_ix = -1;
 	coremap[ix].cme_cpu = 0;
 }
 
@@ -203,7 +203,7 @@ find_pageable_page( void ) {
 }
 
 static
-bool
+void
 coremap_evict( int ix_cme ) {
 	struct vm_page		*victim;
 	struct tlbshootdown	tlb_shootdown;
@@ -215,9 +215,10 @@ coremap_evict( int ix_cme ) {
 	KASSERT( coremap[ix_cme].cme_alloc == 1 );
 	KASSERT( coremap_is_pageable( ix_cme ) );
 
-	
 	//get the victim.
 	victim = coremap[ix_cme].cme_page;
+
+	//wire the frame.
 	coremap[ix_cme].cme_wired = 1;
 
 	//if there's a live tlb mapping ...
@@ -234,18 +235,27 @@ coremap_evict( int ix_cme ) {
 			//wait until the shootdown is complete.
 			while( coremap[ix_cme].cme_tlb_ix != -1 )
 				tlb_shootdown_wait();
+
+			KASSERT( coremap[ix_cme].cme_wired == 1 );
 		}
 		else {
 			//we can just handle the request ourselves.
 			tlb_invalidate( coremap[ix_cme].cme_tlb_ix );
+			KASSERT( coremap[ix_cme].cme_wired == 1 );
 		}
 		
 		KASSERT( coremap[ix_cme].cme_tlb_ix == -1 );
 		KASSERT( coremap[ix_cme].cme_cpu == 0 );
 	}
 
+	//unlock the coremap
+	UNLOCK_COREMAP();
+
 	//evict the page from memory.
 	vm_page_evict( victim );
+
+	//lock it again.
+	LOCK_COREMAP();
 
 	KASSERT( coremap[ix_cme].cme_wired == 1 );
 	KASSERT( coremap[ix_cme].cme_page == victim );
@@ -265,8 +275,6 @@ coremap_evict( int ix_cme ) {
 	
 	//we just unwired a page, perhaps someone was waiting for it.
 	wchan_wakeall( wc_wire );
-
-	return true;
 }
 
 
@@ -279,12 +287,14 @@ coremap_page_replace( void ) {
 
 	//find a page that we could evict.
 	ix = find_pageable_page();
-	KASSERT( coremap[ix].cme_kernel == 0 );
-	KASSERT( coremap[ix].cme_wired == 0 );
+	KASSERT( coremap_is_pageable( ix ) );
 
 	//if we need to evict it ... then do it.
-	if( coremap[ix].cme_alloc != 0 ) 
+	if( coremap[ix].cme_alloc != 0 ) {
+		//if we need to evict, it means we don't have free pages.
+		KASSERT( cm_stats.cms_free <= 0 );
 		coremap_evict( ix );
+	}
 
 	return ix;	
 }
@@ -303,9 +313,7 @@ paddr_t
 coremap_alloc_single( struct vm_page *vmp, bool wired ) {
 	int				ix;
 	int				i;
-	paddr_t				paddr;
 	
-
 	//lock the coremap for atomicity.
 	LOCK_COREMAP();
 
@@ -314,6 +322,7 @@ coremap_alloc_single( struct vm_page *vmp, bool wired ) {
 
 	//check to see if we have a free page.
 	if( cm_stats.cms_free > 0 ) {
+		//we do, so simply find it.
 		for( i = cm_stats.cms_total_frames-1; i >= 0; --i ) {
 			if( coremap_is_free( i ) ) {
 				ix = i;
@@ -341,15 +350,12 @@ coremap_alloc_single( struct vm_page *vmp, bool wired ) {
 	//mark the page we just got as allocated.
 	//and if we had a virtual page associated, then store it inside the coremap.
 	mark_pages_as_allocated( ix, 1, wired, ( vmp == NULL ) );
-	
-	if( vmp != NULL )
-		coremap[ix].cme_page = vmp;
+	coremap[ix].cme_page = vmp;
 
-	paddr = COREMAP_TO_PADDR( ix );
-
+	//unlock and return
 	UNLOCK_COREMAP();
 
-	return paddr;
+	return COREMAP_TO_PADDR( ix );
 }
 
 paddr_t			
@@ -361,6 +367,9 @@ void
 coremap_clone( paddr_t source, paddr_t target ) {
 	vaddr_t		vsource;
 	vaddr_t		vtarget;
+
+	KASSERT( coremap_is_wired( source ) );
+	KASSERT( coremap_is_wired( target ) );
 
 	vsource = PADDR_TO_KVADDR( source );
 	vtarget = PADDR_TO_KVADDR( target );
@@ -526,12 +535,19 @@ coremap_free( paddr_t paddr, bool is_kernel ) {
 		KASSERT( coremap[i].cme_wired || is_kernel );
 		
 		//invalidate the given c
-		tlb_invalidate_coremap_entry( i );
+		if( coremap[i].cme_tlb_ix != -1) {
+			KASSERT( coremap[i].cme_cpu == curcpu->c_number );
 
+			//invalidate the tlb entry.
+			tlb_invalidate( coremap[i].cme_tlb_ix );
+
+			coremap[i].cme_tlb_ix = -1;
+			coremap[i].cme_cpu = 0;
+		}
+			
 		//mark it as deallocated and update stats.
 		coremap[i].cme_alloc = 0;
 		coremap[i].cme_kernel ? --cm_stats.cms_kpages : --cm_stats.cms_upages;
-		coremap[i].cme_referenced = 0;
 		coremap[i].cme_page = NULL;
 	
 		//one extra free page.
@@ -559,7 +575,8 @@ vm_tlbshootdown( const struct tlbshootdown *ts ) {
 	cme_ix = ts->ts_cme_ix;
 	tlb_ix = ts->ts_tlb_ix;
 
-	if( coremap[cme_ix].cme_tlb_ix == tlb_ix && coremap[cme_ix].cme_cpu == curcpu->c_number ) {
+	if( coremap[cme_ix].cme_cpu == curcpu->c_number &&
+		coremap[cme_ix].cme_tlb_ix == tlb_ix ) {
 		tlb_invalidate( tlb_ix );
 		wchan_wakeall( wc_shootdown );
 	}
@@ -585,22 +602,21 @@ coremap_wire( paddr_t paddr ) {
 	LOCK_COREMAP();
 	
 	//while the page is already wired
-	while( coremap[cix].cme_wired ) {
-		//we go to sleep in the waiting channel
-		//of the pin pages
+	while( coremap[cix].cme_wired != 0 )
 		coremap_wire_wait();
-	}
 	
 	KASSERT( coremap[cix].cme_wired == 0 );
 	coremap[cix].cme_wired = 1;
 
 	UNLOCK_COREMAP();
 }
+
 void
 coremap_unwire( paddr_t	paddr ) {
 	unsigned 		cix;
 	
 	cix = PADDR_TO_COREMAP( paddr );
+
 	LOCK_COREMAP();
 	coremap[cix].cme_wired = 0;
 	wchan_wakeall( wc_wire );
