@@ -21,6 +21,7 @@ sys_sbrk( intptr_t inc, void **ptr ) {
 	vaddr_t				heap_start;
 	unsigned			new_pages;
 	unsigned			current_pages;
+	unsigned			covered_range;
 	int				res;
 
 	KASSERT( curthread != NULL && curthread->td_proc != NULL );
@@ -30,8 +31,11 @@ sys_sbrk( intptr_t inc, void **ptr ) {
 
 	if( inc == 0 ) {
 		*ptr = (void*)heap_start;
+		as->as_heap_end = heap_start;
 		return 0;
 	}
+
+	inc = ROUNDUP(inc,4);
 
 	//get the region responsible for the heap.
 	vmr_heap = vm_region_find_responsible( as, heap_start );
@@ -43,15 +47,23 @@ sys_sbrk( intptr_t inc, void **ptr ) {
 	
 	//calculate the end of the heap.
 	current_pages = vm_page_array_num( vmr_heap->vmr_pages );
-	heap_end = heap_start + current_pages * PAGE_SIZE;
-	
+	heap_end = as->as_heap_end;
+	covered_range = heap_start + current_pages * PAGE_SIZE;
+
 	//if the increase is negative, make sure we wont go below the starting point.
 	if( heap_end + inc < heap_start ) {
 		*ptr = ((void*)-1);
 		return EINVAL;
 	}
 
-	new_pages = (heap_end + inc ) / PAGE_SIZE;
+	//if we can cover this range without allocation, we are safe.
+	if( heap_end + inc < covered_range ) {
+		as->as_heap_end += inc;
+		*ptr = (void*)heap_end;
+		return 0;
+	}
+
+	new_pages = DIVROUNDUP(((heap_end + inc)-heap_start),PAGE_SIZE);
 	if( new_pages >= PROC_MAX_HEAP_PAGES ) {
 		*ptr = ((void*)-1);
 		return ENOMEM;
@@ -64,6 +76,7 @@ sys_sbrk( intptr_t inc, void **ptr ) {
 	}
 
 	*ptr = (void*)heap_end;
+	as->as_heap_end += inc;
 	return 0;
 }
 	

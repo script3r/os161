@@ -68,6 +68,7 @@ as_create(void)
 
 	//set the heap start.
 	as->as_heap_start = 0;
+	as->as_heap_end = 0;
 
 	return as;
 }

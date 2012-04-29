@@ -61,6 +61,7 @@ struct addrspace {
 #else
 	struct vm_region_array		*as_regions;
 	vaddr_t				as_heap_start;
+	vaddr_t				as_heap_end;
 #endif
 };
 

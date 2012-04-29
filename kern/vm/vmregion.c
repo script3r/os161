@@ -96,8 +96,10 @@ vm_region_expand( struct vm_region *vmr, unsigned npages ) {
 	unsigned		new_pages;
 	int			res;
 	unsigned		i;
+	unsigned		old_pages;
 
-	new_pages = npages - vm_page_array_num( vmr->vmr_pages );
+	old_pages = vm_page_array_num( vmr->vmr_pages );
+	new_pages = npages - old_pages;
 
 	//trivial case, nothing to do.
 	if( new_pages == 0 )
@@ -117,7 +119,7 @@ vm_region_expand( struct vm_region *vmr, unsigned npages ) {
 
 
 	//initialize each of the newly created vm_pages to NULL.
-	for( i = vm_page_array_num( vmr->vmr_pages ); i < npages; ++i )
+	for( i = old_pages; i < npages; ++i )
 		vm_page_array_set( vmr->vmr_pages, i, NULL );
 	
 	return 0;
@@ -195,7 +197,7 @@ vm_region_find_responsible( struct addrspace *as, vaddr_t vaddr ) {
 		
 		//if the virtual address is between bottom and top
 		//thats the vm_region we are looking for.
-		if( (vaddr >= bottom && vaddr < top ) || (vaddr == bottom && vaddr == top))
+		if( (vaddr >= bottom && vaddr < top) || ((vaddr == bottom) && (vaddr == top)))
 			return vmr;
 	}
 	return NULL;
