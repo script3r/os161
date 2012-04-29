@@ -126,8 +126,7 @@ bool
 coremap_is_pageable( int ix ) {
 	return 
 		coremap[ix].cme_wired == 0 && 		//must not be wired
-		coremap[ix].cme_kernel == 0 &&		//must not be a kernel page
-		(coremap[ix].cme_tlb_ix == -1 || coremap[ix].cme_cpu == curcpu->c_number); //unmapped or in our jurisdicion.
+		coremap[ix].cme_kernel == 0;		//must not be a kernel page
 }
 
 static
