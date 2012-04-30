@@ -11,7 +11,6 @@ struct vm_page {
 	volatile paddr_t		vmp_paddr;	/* the current physical address of this page */
 	off_t				vmp_swapaddr;	/* offset into the swap partition */
 	struct lock			*vmp_lk;		/* spinlock protecting the members */
-	bool				vmp_in_transit;	/* page is in transit */
 };
 
 #define VM_PAGE_IN_CORE(vmp) (((vmp)->vmp_paddr & PAGE_FRAME) != INVALID_PADDR)

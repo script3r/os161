@@ -46,7 +46,7 @@ tlb_unmap( vaddr_t vaddr ) {
 	uint32_t	tlb_hi;
 	uint32_t	tlb_lo;
 
-	
+	COREMAP_IS_LOCKED();
 	//probe the tlb for the given vaddr.
 	ix_tlb = tlb_probe( vaddr, 0 );
 
@@ -109,15 +109,6 @@ tlb_clear() {
 		tlb_invalidate( i );
 }
 
-void
-tlb_invalidate_coremap_entry( unsigned ix ) {
-	KASSERT( ix < cm_stats.cms_total_frames );
-	if( coremap[ix].cme_tlb_ix != -1 ) 
-		tlb_invalidate( coremap[ix].cme_tlb_ix );
-	
-	KASSERT( coremap[ix].cme_tlb_ix == -1 );
-	KASSERT( coremap[ix].cme_cpu == 0 );
-}
 
 /**
  * Choose a random entry to evict from the tlb.
@@ -126,6 +117,7 @@ int
 tlb_evict( void ) {
 	int		tlb_victim;
 	
+	COREMAP_IS_LOCKED();
 	tlb_victim = random() % NUM_TLB;
 	tlb_invalidate( tlb_victim );
 	

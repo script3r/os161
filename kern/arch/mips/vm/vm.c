@@ -27,17 +27,13 @@ vm_bootstrap( void ) {
 	
 	//make sure to bootstrap our swap.
 	swap_bootstrap();
-
-	//initialize the transit wc.
-	wc_transit = wchan_create( "wc_transit" );
-	if( wc_transit == NULL )
-		panic( "vm_bootstrap: could not create wc_transit." );
 }
 
 int
 vm_fault( int fault_type, vaddr_t fault_addr ) {
 	struct addrspace		*as;
-	
+	int				res;
+
 	//make sure it is page aligned.
 	fault_addr &= PAGE_FRAME;
 
@@ -47,11 +43,9 @@ vm_fault( int fault_type, vaddr_t fault_addr ) {
 		return EFAULT;
 
 	//delegate the fault to the address space.
-	wchan_wakeall( wc_wire );
-	wchan_wakeall( wc_transit );
-	wchan_wakeall( wc_shootdown );
-
-	return as_fault( as, fault_type, fault_addr );
+	res = as_fault( as, fault_type, fault_addr );
+	KASSERT( !lock_do_i_hold( giant_paging_lock ) );
+	return res;
 }
 
 void
@@ -61,12 +55,17 @@ vm_map( vaddr_t vaddr, paddr_t paddr, int writeable ) {
 	uint32_t		tlb_hi;
 	uint32_t		tlb_lo;
 
+	KASSERT( (paddr & PAGE_FRAME) == paddr );
+	KASSERT( paddr != INVALID_PADDR );
+
 	//lock the coremap for atomicity.
 	LOCK_COREMAP();
 	
 	//get the coremap_entry index associated with the paddr.
 	ix = PADDR_TO_COREMAP( paddr );
 	
+	KASSERT( coremap_is_wired( paddr ) );
+
 	//probe to see if this virtual address is already mapped inside the tlb.
 	ix_tlb = tlb_probe( vaddr, 0 );
 

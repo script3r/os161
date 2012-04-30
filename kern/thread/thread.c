@@ -145,6 +145,7 @@ thread_create(const char *name)
 	thread->t_in_interrupt = false;
 	thread->t_curspl = IPL_HIGH;
 	thread->t_iplhigh_count = 1; /* corresponding to t_curspl */
+	thread->t_vmp_count = 0;
 
 	/* VM fields */
 	thread->t_addrspace = NULL;

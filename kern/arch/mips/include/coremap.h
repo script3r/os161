@@ -11,6 +11,7 @@
 #define UNLOCK_COREMAP() (spinlock_release( &slk_coremap))
 
 #define COREMAP_IS_LOCKED() (KASSERT(spinlock_do_i_hold( &slk_coremap )))
+#define COREMAP_NO_VMP_LOCKS() (KASSERT( curthread->t_vmp_count == 0 ))
 
 struct coremap_stats {
 	uint32_t		cms_total_frames;	/* what we physically manage */

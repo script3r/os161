@@ -35,6 +35,7 @@
 #include <vm.h>
 #include <vm/region.h>
 #include <vm/page.h>
+#include <vm/swap.h>
 #include <array.h>
 #include <cpu.h>
 #include <machine/coremap.h>

@@ -118,16 +118,17 @@ coremap_bootstrap( void ) {
 static
 bool
 coremap_is_free( int ix ) {
+	COREMAP_IS_LOCKED();
 	return coremap[ix].cme_alloc == 0;
 }
 
 static
 bool
 coremap_is_pageable( int ix ) {
+	COREMAP_IS_LOCKED();
 	return 
 		coremap[ix].cme_wired == 0 && 		//must not be wired
-		coremap[ix].cme_kernel == 0 &&		//must not be a kernel page
-		(coremap[ix].cme_tlb_ix == -1 || coremap[ix].cme_cpu == curcpu->c_number);
+		coremap[ix].cme_kernel == 0;
 }
 
 static
@@ -151,6 +152,7 @@ rank_region_for_paging( int ix, int size ) {
 static
 void
 coremap_ensure_integrity() {
+	COREMAP_IS_LOCKED();
 	KASSERT( cm_stats.cms_total_frames == 
 			cm_stats.cms_upages + cm_stats.cms_kpages + cm_stats.cms_free );
 }
@@ -182,6 +184,20 @@ find_optimal_range( int npages ) {
 	return best_base;
 }
 
+static
+int
+find_pageable_without_mapping( void ) {
+	unsigned		i;
+
+	COREMAP_IS_LOCKED();
+	for( i = 0; i < cm_stats.cms_total_frames; ++i )
+		if( coremap_is_pageable( i ) && coremap[i].cme_tlb_ix == -1 )
+			return i;
+
+	return -1;
+
+}
+
 /**
  * finds a page that could be paged-out.
  */
@@ -190,6 +206,13 @@ int
 find_pageable_page( void ) {
 	uint32_t	i;
 	uint32_t	start;
+	int		res;
+
+	COREMAP_IS_LOCKED();
+	
+	res = find_pageable_without_mapping();
+	if( res >= 0 )
+		return res;
 
 	start = random() % cm_stats.cms_total_frames;
 	for( i = start; i < cm_stats.cms_total_frames; ++i )
@@ -236,10 +259,8 @@ coremap_evict( int ix_cme ) {
 			ipi_tlbshootdown_by_num( coremap[ix_cme].cme_cpu, &tlb_shootdown );
 			
 			//wait until the shootdown is complete.
-			while( coremap[ix_cme].cme_tlb_ix != -1 ) {
-				KASSERT( coremap[ix_cme].cme_wired == 1 );
+			while( coremap[ix_cme].cme_tlb_ix != -1 )
 				tlb_shootdown_wait();
-			}
 		}
 		else {
 			//we can just handle the request ourselves.
@@ -250,7 +271,7 @@ coremap_evict( int ix_cme ) {
 	KASSERT( coremap[ix_cme].cme_wired == 1 );
 	KASSERT( coremap[ix_cme].cme_tlb_ix == -1 );
 	KASSERT( coremap[ix_cme].cme_cpu == 0 );
-
+	
 	//unlock the coremap
 	UNLOCK_COREMAP();
 
@@ -269,15 +290,14 @@ coremap_evict( int ix_cme ) {
 	coremap[ix_cme].cme_page = NULL;
 	coremap[ix_cme].cme_alloc = 0;
 	
+	wchan_wakeall( wc_wire );
+
 	//update the stats.
 	--cm_stats.cms_upages;
 	++cm_stats.cms_free;
 
 	//ensure coremap integrity.
 	coremap_ensure_integrity();
-	
-	//we just unwired a page, perhaps someone was waiting for it.
-	wchan_wakeall( wc_wire );
 }
 
 
@@ -292,10 +312,10 @@ coremap_page_replace( void ) {
 	//find a page that we could evict.
 	ix = find_pageable_page();
 	KASSERT( coremap_is_pageable( ix ) );
+	KASSERT( coremap[ix].cme_alloc == 1 );
+	KASSERT( coremap[ix].cme_page != NULL );
 
-	//if we need to evict it ... then do it.
-	if( coremap[ix].cme_alloc != 0 )
-		coremap_evict( ix );
+	coremap_evict( ix );
 
 	return ix;	
 }
@@ -353,6 +373,7 @@ coremap_alloc_single( struct vm_page *vmp, bool wired ) {
 	//mark the page we just got as allocated.
 	//and if we had a virtual page associated, then store it inside the coremap.
 	mark_pages_as_allocated( ix, 1, wired, ( vmp == NULL ) );
+	KASSERT( coremap[ix].cme_page == NULL );
 	coremap[ix].cme_page = vmp;
 
 	//unlock and return
@@ -370,6 +391,12 @@ void
 coremap_clone( paddr_t source, paddr_t target ) {
 	vaddr_t		vsource;
 	vaddr_t		vtarget;
+
+	KASSERT( (source & PAGE_FRAME) == source );
+	KASSERT( (target & PAGE_FRAME) == target );
+
+	KASSERT( source != INVALID_PADDR );
+	KASSERT( target != INVALID_PADDR );
 
 	KASSERT( coremap_is_wired( source ) );
 	KASSERT( coremap_is_wired( target ) );
@@ -546,7 +573,6 @@ coremap_free( paddr_t paddr, bool is_kernel ) {
 
 			//invalidate the tlb entry.
 			tlb_invalidate( coremap[i].cme_tlb_ix );
-
 			coremap[i].cme_tlb_ix = -1;
 			coremap[i].cme_cpu = 0;
 		}
@@ -555,7 +581,11 @@ coremap_free( paddr_t paddr, bool is_kernel ) {
 		coremap[i].cme_alloc = 0;
 		coremap[i].cme_kernel ? --cm_stats.cms_kpages : --cm_stats.cms_upages;
 		coremap[i].cme_page = NULL;
-	
+		coremap[i].cme_wired = 0;
+
+		//just released a wire.
+		wchan_wakeall( wc_wire );
+
 		//one extra free page.
 		++cm_stats.cms_free;
 	
@@ -581,8 +611,11 @@ vm_tlbshootdown( const struct tlbshootdown *ts ) {
 	cme_ix = ts->ts_cme_ix;
 	tlb_ix = ts->ts_tlb_ix;
 
-	if( coremap[cme_ix].cme_cpu == curcpu->c_number && coremap[cme_ix].cme_tlb_ix == tlb_ix )
+	if( coremap[cme_ix].cme_cpu == curcpu->c_number ) {
+		KASSERT( coremap[cme_ix].cme_tlb_ix == tlb_ix );
 		tlb_invalidate( tlb_ix );
+		wchan_wakeall( wc_shootdown );
+	}
 
 	wchan_wakeall( wc_shootdown );
 	UNLOCK_COREMAP();
@@ -620,17 +653,23 @@ coremap_unwire( paddr_t	paddr ) {
 	unsigned 		cix;
 	
 	cix = PADDR_TO_COREMAP( paddr );
-
+	
 	LOCK_COREMAP();
+
 	KASSERT( coremap[cix].cme_wired == 1 );
 	coremap[cix].cme_wired = 0;
 	wchan_wakeall( wc_wire );
+
 	UNLOCK_COREMAP();
 }
 		
 void
 coremap_zero( paddr_t paddr ) {
 	vaddr_t		vaddr;
+	
+	KASSERT( (paddr & PAGE_FRAME) == paddr );
+	KASSERT( paddr  != INVALID_PADDR );
+	KASSERT( coremap_is_wired( paddr ) );
 
 	vaddr = PADDR_TO_KVADDR( paddr );
 	bzero( (char*)vaddr, PAGE_SIZE );
@@ -643,7 +682,5 @@ coremap_is_wired( paddr_t paddr ) {
 	KASSERT( ( paddr & PAGE_FRAME ) == paddr );
 
 	ix = PADDR_TO_COREMAP( paddr );
-	if( coremap[ix].cme_wired == 0 )
-		panic( "coremap %d was expected to be wired", ix );
 	return coremap[ix].cme_wired != 0;
 }

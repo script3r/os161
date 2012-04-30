@@ -178,8 +178,8 @@ lock_create(const char *name)
 void
 lock_destroy(struct lock *lock)
 {
-        DEBUGASSERT(lock != NULL);
-        DEBUGASSERT(lock->lk_holder == NULL);
+        KASSERT(lock != NULL);
+        KASSERT(lock->lk_holder == NULL);
 
         spinlock_cleanup(&lock->lk_lock);
         wchan_destroy(lock->lk_wchan);
@@ -191,8 +191,8 @@ lock_destroy(struct lock *lock)
 void
 lock_acquire(struct lock *lock)
 {
-        DEBUGASSERT(lock != NULL);
-        DEBUGASSERT(!(lock_do_i_hold(lock)));
+        KASSERT(lock != NULL);
+        KASSERT(!(lock_do_i_hold(lock)));
         KASSERT(curthread->t_in_interrupt == false);
  
         spinlock_acquire(&lock->lk_lock);
@@ -210,7 +210,7 @@ lock_acquire(struct lock *lock)
 void
 lock_release(struct lock *lock)
 {
-        DEBUGASSERT(lock_do_i_hold(lock));
+        KASSERT(lock_do_i_hold(lock));
 
         spinlock_acquire(&lock->lk_lock);
         lock->lk_holder = NULL;
@@ -222,7 +222,7 @@ bool
 lock_do_i_hold(struct lock *lock)
 {
         bool ret;
-        DEBUGASSERT(lock != NULL);
+        KASSERT(lock != NULL);
 
         spinlock_acquire(&lock->lk_lock);
         ret = (lock->lk_holder == curthread);
@@ -275,7 +275,7 @@ cv_destroy(struct cv *cv)
 void
 cv_wait(struct cv *cv, struct lock *lock)
 {
-        DEBUGASSERT(lock_do_i_hold(lock));
+        KASSERT(lock_do_i_hold(lock));
 
         wchan_lock(cv->cv_wchan);
         lock_release(lock);
@@ -286,7 +286,7 @@ cv_wait(struct cv *cv, struct lock *lock)
 void
 cv_signal(struct cv *cv, struct lock *lock)
 {
-        DEBUGASSERT(lock_do_i_hold(lock));
+        KASSERT(lock_do_i_hold(lock));
 
         wchan_wakeone(cv->cv_wchan);
 }
@@ -294,7 +294,7 @@ cv_signal(struct cv *cv, struct lock *lock)
 void
 cv_broadcast(struct cv *cv, struct lock *lock)
 {
-        DEBUGASSERT(lock_do_i_hold(lock));
+        KASSERT(lock_do_i_hold(lock));
 
         wchan_wakeall(cv->cv_wchan);
 }

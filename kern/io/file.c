@@ -98,6 +98,7 @@ file_get(struct proc *p, int fd, struct file **f ) {
 	FD_LOCK( p->p_fd );
 	if( p->p_fd->fd_ofiles[fd] != NULL ) { 
 		*f = p->p_fd->fd_ofiles[fd];
+		F_LOCK( *f );
 		FD_UNLOCK( p->p_fd );
 		return 0;
 	}
