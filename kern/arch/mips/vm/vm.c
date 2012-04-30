@@ -47,6 +47,10 @@ vm_fault( int fault_type, vaddr_t fault_addr ) {
 		return EFAULT;
 
 	//delegate the fault to the address space.
+	wchan_wakeall( wc_wire );
+	wchan_wakeall( wc_transit );
+	wchan_wakeall( wc_shootdown );
+
 	return as_fault( as, fault_type, fault_addr );
 }
 
@@ -98,15 +102,6 @@ vm_map( vaddr_t vaddr, paddr_t paddr, int writeable ) {
 
 	//write it to the tlb.
 	tlb_write( tlb_hi, tlb_lo, ix_tlb );
-
-	//unpin the frame.
-	coremap[ix].cme_wired = 0;
-
-	//this frame has been referenced.
-	coremap[ix].cme_referenced = 1;
-
-	//wake up eveyrone waiting on wc_wire.
-	wchan_wakeall( wc_wire );
 
 	//unlock the coremap.
 	UNLOCK_COREMAP();

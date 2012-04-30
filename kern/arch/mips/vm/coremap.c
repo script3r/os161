@@ -126,7 +126,8 @@ bool
 coremap_is_pageable( int ix ) {
 	return 
 		coremap[ix].cme_wired == 0 && 		//must not be wired
-		coremap[ix].cme_kernel == 0;		//must not be a kernel page
+		coremap[ix].cme_kernel == 0 &&		//must not be a kernel page
+		(coremap[ix].cme_tlb_ix == -1 || coremap[ix].cme_cpu == curcpu->c_number);
 }
 
 static
@@ -194,6 +195,7 @@ find_pageable_page( void ) {
 	for( i = start; i < cm_stats.cms_total_frames; ++i )
 		if( coremap_is_pageable( i ) )
 			return i;
+
 	for( i = 0; i < start; ++i )
 		if( coremap_is_pageable( i ) )
 			return i;
@@ -285,18 +287,15 @@ coremap_page_replace( void ) {
 	int		ix;
 	
 	COREMAP_IS_LOCKED();
+	KASSERT( cm_stats.cms_free == 0 );
 
 	//find a page that we could evict.
 	ix = find_pageable_page();
 	KASSERT( coremap_is_pageable( ix ) );
 
 	//if we need to evict it ... then do it.
-	if( coremap[ix].cme_alloc != 0 ) {
-		//if we need to evict, it means we don't have free pages.
-		KASSERT( cm_stats.cms_free <= 0 );
-
+	if( coremap[ix].cme_alloc != 0 )
 		coremap_evict( ix );
-	}
 
 	return ix;	
 }
@@ -331,6 +330,8 @@ coremap_alloc_single( struct vm_page *vmp, bool wired ) {
 				break;
 			}
 		}
+
+		KASSERT( ix >= 0 );
 	}
 	
 	//at this point, two things could happen.
@@ -580,12 +581,10 @@ vm_tlbshootdown( const struct tlbshootdown *ts ) {
 	cme_ix = ts->ts_cme_ix;
 	tlb_ix = ts->ts_tlb_ix;
 
-
-	if( coremap[cme_ix].cme_cpu == curcpu->c_number && coremap[cme_ix].cme_tlb_ix == tlb_ix ) {
+	if( coremap[cme_ix].cme_cpu == curcpu->c_number && coremap[cme_ix].cme_tlb_ix == tlb_ix )
 		tlb_invalidate( tlb_ix );
-		wchan_wakeall( wc_shootdown );
-	}
 
+	wchan_wakeall( wc_shootdown );
 	UNLOCK_COREMAP();
 }
 
@@ -623,6 +622,7 @@ coremap_unwire( paddr_t	paddr ) {
 	cix = PADDR_TO_COREMAP( paddr );
 
 	LOCK_COREMAP();
+	KASSERT( coremap[cix].cme_wired == 1 );
 	coremap[cix].cme_wired = 0;
 	wchan_wakeall( wc_wire );
 	UNLOCK_COREMAP();

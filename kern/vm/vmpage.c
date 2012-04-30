@@ -97,7 +97,6 @@ vm_page_destroy( struct vm_page *vmp ) {
 
 
 	vm_page_acquire( vmp );
-	KASSERT( vmp->vmp_in_transit == false );
 
 	paddr = vmp->vmp_paddr & PAGE_FRAME;
 	
@@ -251,15 +250,6 @@ vm_page_new_blank( struct vm_page **ret ) {
 	return 0;
 }
 
-static
-void
-vm_page_wait_for_transit( struct vm_page *vmp ) {
-	wchan_lock( wc_transit );
-	vm_page_unlock( vmp );
-	wchan_sleep( wc_transit );
-	vm_page_lock( vmp );
-}
-
 int
 vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_t fault_vaddr ) {
 	paddr_t		paddr;
@@ -284,12 +274,6 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 	
 	//we lock the page for atomicity.
 	vm_page_lock( vmp );
-
-	//if our page is being swapped out by someone else ...
-	while( vmp->vmp_in_transit == true )
-		vm_page_wait_for_transit( vmp );
-		
-	KASSERT( vmp->vmp_in_transit == false );
 
 	//get the physical address.
 	paddr = vmp->vmp_paddr & PAGE_FRAME;
@@ -361,21 +345,14 @@ vm_page_evict( struct vm_page *victim ) {
 	KASSERT( swap_addr != INVALID_SWAPADDR );
 	KASSERT( coremap_is_wired( paddr ) );
 
-	//mark the page as being in transit.
-	victim->vmp_in_transit = true;
-
 	//swapout.
 	swap_out( paddr, swap_addr );
-	
+
 	//update the page information.
-	KASSERT( victim->vmp_in_transit );
 	KASSERT( (victim->vmp_paddr & PAGE_FRAME) == paddr );
 	KASSERT( coremap_is_wired( paddr ) );
 
 	victim->vmp_paddr = INVALID_PADDR;
-	victim->vmp_in_transit = false;
-
-	wchan_wakeall( wc_transit );
 	vm_page_unlock( victim );
 }
 	
