@@ -325,8 +325,9 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 	
 		KASSERT( coremap_is_wired( paddr ) );
 	
-		//swap the page in.
 		LOCK_PAGING_GIANT();
+
+		//swap the page in.
 		swap_in( paddr, swap_addr );
 
 		//make sure the page address is still invalid.

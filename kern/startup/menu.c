@@ -798,15 +798,15 @@ menu(char *args)
 	char buf[64];
 	int err;
 
-	menu_execute(args, 1);
-	
-	//initialize the proc system
 	proc_system_init();
+
 	
 	//kickstart proc0.
 	err = proc0( &p0 );
 	if( err )
 		panic( "failed creating proc0." );
+
+	menu_execute(args, 1);
 
 	//test the proc allocation mechanism.
 	//proc_test_pid_allocation();
