@@ -325,8 +325,6 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 	
 		KASSERT( coremap_is_wired( paddr ) );
 	
-		LOCK_PAGING_GIANT();
-
 		//swap the page in.
 		swap_in( paddr, swap_addr );
 
@@ -340,7 +338,6 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 
 		//update the physical address.
 		vmp->vmp_paddr = paddr;
-		UNLOCK_PAGING_GIANT();
 	}
 
 	//map fault_vaddr into paddr with writeable flags.
@@ -362,8 +359,6 @@ void
 vm_page_evict( struct vm_page *victim ) {
 	paddr_t		paddr;
 	off_t		swap_addr;
-
-	LOCK_PAGING_GIANT();
 
 	//lock the page while evicting.
 	vm_page_lock( victim );
@@ -390,8 +385,6 @@ vm_page_evict( struct vm_page *victim ) {
 
 	victim->vmp_paddr = INVALID_PADDR;
 	vm_page_unlock( victim );
-
-	UNLOCK_PAGING_GIANT();
 
 }
 	

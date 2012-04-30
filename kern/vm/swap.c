@@ -53,7 +53,7 @@ swap_io( paddr_t paddr, off_t offset, enum uio_rw op ) {
 	vaddr_t			vaddr;
 	int			res;
 	
-	KASSERT( lock_do_i_hold( giant_paging_lock ) );
+	LOCK_PAGING_GIANT();
 
 	//get the virtual address.
 	vaddr = PADDR_TO_KVADDR( paddr );
@@ -64,6 +64,7 @@ swap_io( paddr_t paddr, off_t offset, enum uio_rw op ) {
 	//perform the request.
 	res = (op == UIO_READ) ? VOP_READ( vn_sw, &uio ) : VOP_WRITE( vn_sw, &uio );
 	
+	UNLOCK_PAGING_GIANT();
 	//if we have a problem ... bail.
 	if( res )
 		panic( "swap_io: failed to perform a VOP." );
