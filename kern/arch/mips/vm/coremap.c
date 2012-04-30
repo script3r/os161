@@ -239,6 +239,7 @@ coremap_evict( int ix_cme ) {
 	KASSERT( coremap[ix_cme].cme_page != NULL );
 	KASSERT( coremap[ix_cme].cme_alloc == 1 );
 	KASSERT( coremap_is_pageable( ix_cme ) );
+	KASSERT( lock_do_i_hold( giant_paging_lock ) );
 
 	//get the victim.
 	victim = coremap[ix_cme].cme_page;
@@ -306,6 +307,8 @@ int
 coremap_page_replace( void ) {
 	int		ix;
 	
+	KASSERT( lock_do_i_hold( giant_paging_lock ) );
+
 	COREMAP_IS_LOCKED();
 	KASSERT( cm_stats.cms_free == 0 );
 
@@ -335,6 +338,8 @@ coremap_alloc_single( struct vm_page *vmp, bool wired ) {
 	int				ix;
 	int				i;
 	
+	LOCK_PAGING_IF_POSSIBLE();
+
 	//lock the coremap for atomicity.
 	LOCK_COREMAP();
 
@@ -366,6 +371,7 @@ coremap_alloc_single( struct vm_page *vmp, bool wired ) {
 	//if the index is still negative, it means that
 	//there's nothing to do anymore, we cannot grab a page.
 	if( ix < 0 ) {
+		KASSERT( !lock_do_i_hold( giant_paging_lock ) );
 		UNLOCK_COREMAP();
 		return INVALID_PADDR;
 	}
@@ -378,6 +384,8 @@ coremap_alloc_single( struct vm_page *vmp, bool wired ) {
 
 	//unlock and return
 	UNLOCK_COREMAP();
+
+	UNLOCK_PAGING_IF_POSSIBLE();
 
 	return COREMAP_TO_PADDR( ix );
 }

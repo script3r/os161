@@ -196,6 +196,7 @@ vm_page_clone( struct vm_page *source, struct vm_page **target ) {
 			return ENOMEM;
 		}
 
+		LOCK_PAGING_GIANT();
 		//swap in the contents located ins swap_addr into source_paddr.
 		swap_in( source_paddr, swap_addr );
 		
@@ -203,6 +204,8 @@ vm_page_clone( struct vm_page *source, struct vm_page **target ) {
 		--curthread->t_vmp_count;
 		vm_page_lock( source );
 		++curthread->t_vmp_count;
+
+		UNLOCK_PAGING_GIANT();
 
 		//make sure nobody paged-in this page.
 		KASSERT( (source->vmp_paddr & PAGE_FRAME) == INVALID_PADDR );
@@ -286,6 +289,7 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 
 	(void) as;
 
+
 	//which fault happened?
 	switch( fault_type ) {
 		case VM_FAULT_READ:	
@@ -325,6 +329,7 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 	
 		KASSERT( coremap_is_wired( paddr ) );
 	
+		LOCK_PAGING_GIANT();
 		//swap the page in.
 		swap_in( paddr, swap_addr );
 
@@ -335,6 +340,8 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 
 		//reacquire the locks.
 		vm_page_lock( vmp );
+
+		UNLOCK_PAGING_GIANT();
 
 		//update the physical address.
 		vmp->vmp_paddr = paddr;
@@ -359,6 +366,8 @@ void
 vm_page_evict( struct vm_page *victim ) {
 	paddr_t		paddr;
 	off_t		swap_addr;
+	
+	KASSERT( lock_do_i_hold( giant_paging_lock ) );
 
 	//lock the page while evicting.
 	vm_page_lock( victim );
@@ -371,13 +380,13 @@ vm_page_evict( struct vm_page *victim ) {
 	KASSERT( coremap_is_wired( paddr ) );
 	
 	//unlock the page
-	vm_page_unlock( victim );
+//	vm_page_unlock( victim );
 
 	//swapout.
 	swap_out( paddr, swap_addr );
 	
 	//lock the victim
-	vm_page_lock( victim );
+	//vm_page_lock( victim );
 
 	//update the page information.
 	KASSERT( (victim->vmp_paddr & PAGE_FRAME) == paddr );

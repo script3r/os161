@@ -72,8 +72,8 @@ vm_map( vaddr_t vaddr, paddr_t paddr, int writeable ) {
 	//if it is not
 	if( ix_tlb < 0 ) {
 		//make sure what the coremap has is correct.
-		KASSERT( coremap[ix].cme_tlb_ix == -1 );
-		KASSERT( coremap[ix].cme_cpu == 0 );
+		//KASSERT( coremap[ix].cme_tlb_ix == -1 );
+		//KASSERT( coremap[ix].cme_cpu == 0 );
 		
 		//get a free tlb slot.
 		ix_tlb = tlb_get_free_slot();

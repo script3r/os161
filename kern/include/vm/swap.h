@@ -12,6 +12,8 @@
 
 #define LOCK_PAGING_GIANT() (lock_acquire(giant_paging_lock))
 #define UNLOCK_PAGING_GIANT() (lock_release(giant_paging_lock))
+#define LOCK_PAGING_IF_POSSIBLE() if( curthread != NULL && !curthread->t_in_interrupt ) lock_acquire( giant_paging_lock )
+#define UNLOCK_PAGING_IF_POSSIBLE() if( curthread != NULL && !curthread->t_in_interrupt ) lock_release( giant_paging_lock )
 
 /**
  * holds statistics regarding swapping.
