@@ -54,6 +54,7 @@ swap_io( paddr_t paddr, off_t offset, enum uio_rw op ) {
 	int			res;
 	
 	KASSERT( lock_do_i_hold( giant_paging_lock ) );
+	KASSERT( curthread->t_vmp_count == 0 );
 
 	//get the virtual address.
 	vaddr = PADDR_TO_KVADDR( paddr );

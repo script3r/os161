@@ -137,6 +137,7 @@ void
 vm_page_lock( struct vm_page *vmp ) {
 	KASSERT( !lock_do_i_hold( vmp->vmp_lk ) );
 	KASSERT( curthread->t_vmp_count == 0 );
+
 	lock_acquire( vmp->vmp_lk );
 	++curthread->t_vmp_count;
 }
@@ -166,6 +167,7 @@ vm_page_clone( struct vm_page *source, struct vm_page **target ) {
 
 	KASSERT( coremap_is_wired( paddr ) );
 	KASSERT( lock_do_i_hold( vmp->vmp_lk ) );
+	KASSERT( curthread->t_vmp_count == 1 );
 
 	//acquire the source page.
 	--curthread->t_vmp_count;
@@ -195,7 +197,6 @@ vm_page_clone( struct vm_page *source, struct vm_page **target ) {
 
 			return ENOMEM;
 		}
-
 		LOCK_PAGING_GIANT();
 		//swap in the contents located ins swap_addr into source_paddr.
 		swap_in( source_paddr, swap_addr );
@@ -220,10 +221,6 @@ vm_page_clone( struct vm_page *source, struct vm_page **target ) {
 	
 	//clone from source to the new address.
 	coremap_clone( source_paddr, paddr );
-	
-	//unwire both pages.
-	coremap_unwire( source_paddr );
-	coremap_unwire( paddr );
 
 	//unlock both source and target.
 	--curthread->t_vmp_count;
@@ -231,6 +228,9 @@ vm_page_clone( struct vm_page *source, struct vm_page **target ) {
 	++curthread->t_vmp_count;
 	vm_page_unlock( vmp );
 
+	//unwire both pages.
+	coremap_unwire( source_paddr );
+	coremap_unwire( paddr );
 	*target = vmp;
 	return 0;
 }
@@ -253,6 +253,7 @@ vm_page_create( ) {
 	//and swap address to be invalid.
 	vmp->vmp_paddr = INVALID_PADDR;
 	vmp->vmp_swapaddr = INVALID_SWAPADDR;
+	vmp->vmp_in_transit = false;
 
 	return vmp;
 }
@@ -281,14 +282,23 @@ vm_page_new_blank( struct vm_page **ret ) {
 	return 0;
 }
 
+static
+void
+vm_page_wait_for_transit( struct vm_page *vmp ) {
+	wchan_lock( wc_transit );
+	vm_page_unlock( vmp );
+	KASSERT( curthread->t_vmp_count == 0 );
+	wchan_sleep( wc_transit );
+	vm_page_lock( vmp );
+}
+
 int
 vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_t fault_vaddr ) {
 	paddr_t		paddr;
 	int		writeable;
 	off_t		swap_addr;
-
+	bool		success;
 	(void) as;
-
 
 	//which fault happened?
 	switch( fault_type ) {
@@ -304,17 +314,26 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 		
 	}
 	
-	//we lock the page for atomicity.
-	vm_page_lock( vmp );
+	do {
+		success = true;
+		vm_page_lock( vmp );
+		while( vmp->vmp_in_transit == true )
+			vm_page_wait_for_transit( vmp );
+		
+		vm_page_unlock( vmp );
+		vm_page_acquire( vmp );
+		if( vmp->vmp_in_transit ) {
+			success = false;
+			coremap_unwire( (vmp->vmp_paddr & PAGE_FRAME ) );
+			vm_page_unlock( vmp );
+		}
+	} while( !success );
 
 	//get the physical address.
 	paddr = vmp->vmp_paddr & PAGE_FRAME;
 
-	//if the page is in core
-	if( paddr != INVALID_PADDR ) {
-		coremap_wire( paddr );
-	} 
-	else {
+	//if the page is out of core
+	if( paddr == INVALID_PADDR ) {
 		swap_addr = vmp->vmp_swapaddr;
 		KASSERT( vmp->vmp_swapaddr != INVALID_SWAPADDR );
 		
@@ -326,22 +345,18 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 		if( paddr == INVALID_PADDR ) 
 			return ENOMEM;
 		
-	
 		KASSERT( coremap_is_wired( paddr ) );
-	
+
 		LOCK_PAGING_GIANT();
 		//swap the page in.
 		swap_in( paddr, swap_addr );
+		vm_page_lock( vmp );
+		UNLOCK_PAGING_GIANT();
 
 		//make sure the page address is still invalid.
 		KASSERT( vmp->vmp_paddr == INVALID_PADDR );
 		KASSERT( vmp->vmp_swapaddr == swap_addr );
 		KASSERT( coremap_is_wired( paddr ) );
-
-		//reacquire the locks.
-		vm_page_lock( vmp );
-
-		UNLOCK_PAGING_GIANT();
 
 		//update the physical address.
 		vmp->vmp_paddr = paddr;
@@ -355,7 +370,6 @@ vm_page_fault( struct vm_page *vmp, struct addrspace *as, int fault_type, vaddr_
 
 	//unlock the page.
 	vm_page_unlock( vmp );
-
 	return 0;
 }
 
@@ -371,7 +385,7 @@ vm_page_evict( struct vm_page *victim ) {
 
 	//lock the page while evicting.
 	vm_page_lock( victim );
-
+	
 	paddr = victim->vmp_paddr & PAGE_FRAME;
 	swap_addr = victim->vmp_swapaddr;
 
@@ -379,20 +393,28 @@ vm_page_evict( struct vm_page *victim ) {
 	KASSERT( swap_addr != INVALID_SWAPADDR );
 	KASSERT( coremap_is_wired( paddr ) );
 	
-	//unlock the page
-//	vm_page_unlock( victim );
+	//mark it as being in transit.
+	KASSERT( victim->vmp_in_transit == false );
+	victim->vmp_in_transit = true;
+	
+	//unlock it
+	vm_page_unlock( victim );
 
 	//swapout.
 	swap_out( paddr, swap_addr );
 	
 	//lock the victim
-	//vm_page_lock( victim );
+	vm_page_lock( victim );
 
 	//update the page information.
+	KASSERT( victim->vmp_in_transit == true );
 	KASSERT( (victim->vmp_paddr & PAGE_FRAME) == paddr );
 	KASSERT( coremap_is_wired( paddr ) );
 
+	victim->vmp_in_transit = false;
 	victim->vmp_paddr = INVALID_PADDR;
+
+	wchan_wakeall( wc_transit );
 	vm_page_unlock( victim );
 
 }

@@ -108,6 +108,10 @@ coremap_bootstrap( void ) {
 	if( wc_shootdown == NULL )
 		panic( "coremap_bootstrap: could not create wc_shootdown" );
 	
+	wc_transit = wchan_create( "wc_transit" );
+	if( wc_transit == NULL )
+		panic( "coremap_bootstrap: wc_transit." );
+
 	coremap_initialized = true;
 }
 
@@ -247,7 +251,7 @@ coremap_evict( int ix_cme ) {
 
 	//wire the frame.
 	coremap[ix_cme].cme_wired = 1;
-
+	
 	//if there's a live tlb mapping ...
 	if( coremap[ix_cme].cme_tlb_ix != -1 ) {
 		//if it is outside of our jurisdiction ...
@@ -326,6 +330,7 @@ coremap_page_replace( void ) {
 static
 void
 coremap_wire_wait( ) {
+	KASSERT( curthread->t_vmp_count == 0 );
 	wchan_lock( wc_wire );
 	UNLOCK_COREMAP();
 	wchan_sleep( wc_wire );
