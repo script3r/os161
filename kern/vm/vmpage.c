@@ -15,7 +15,6 @@
 #include <machine/coremap.h>
 
 struct wchan		*wc_transit;
-
 static
 int
 vm_page_new( struct vm_page **vmp_ret, paddr_t *paddr_ret ) {
