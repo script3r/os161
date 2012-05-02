@@ -10,7 +10,7 @@ struct lock;
 struct vm_page {
 	volatile paddr_t		vmp_paddr;	/* the current physical address of this page */
 	off_t				vmp_swapaddr;	/* offset into the swap partition */
-	struct lock			*vmp_lk;		/* spinlock protecting the members */
+	struct spinlock			vmp_lk;		/* spinlock protecting the members */
 	bool				vmp_in_transit;	
 };
 

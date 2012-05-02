@@ -96,7 +96,7 @@ vm_page_acquire( struct vm_page *vmp ) {
 	if( paddr != INVALID_PADDR )		
 		KASSERT( coremap_is_wired( paddr ) );
 
-	KASSERT( lock_do_i_hold( vmp->vmp_lk ) );
+	KASSERT( spinlock_do_i_hold( &vmp->vmp_lk ) );
 }
 
 void
@@ -128,25 +128,25 @@ vm_page_destroy( struct vm_page *vmp ) {
 	if( vmp->vmp_swapaddr != INVALID_SWAPADDR ) 
 		swap_dealloc( vmp->vmp_swapaddr );
 
-	lock_destroy( vmp->vmp_lk );
+	spinlock_cleanup( &vmp->vmp_lk );
 	kfree( vmp );
 }
 
 void
 vm_page_lock( struct vm_page *vmp ) {
-	KASSERT( !lock_do_i_hold( vmp->vmp_lk ) );
+	KASSERT( !spinlock_do_i_hold( &vmp->vmp_lk ) );
 	KASSERT( curthread->t_vmp_count == 0 );
 
-	lock_acquire( vmp->vmp_lk );
+	spinlock_acquire( &vmp->vmp_lk );
 	++curthread->t_vmp_count;
 }
 
 void
 vm_page_unlock( struct vm_page *vmp ) {
-	KASSERT( lock_do_i_hold( vmp->vmp_lk ) );
+	KASSERT( spinlock_do_i_hold( &vmp->vmp_lk ) );
 	KASSERT( curthread->t_vmp_count == 1 );
 
-	lock_release( vmp->vmp_lk );
+	spinlock_release( &vmp->vmp_lk );
 	--curthread->t_vmp_count;
 }
 
@@ -165,7 +165,7 @@ vm_page_clone( struct vm_page *source, struct vm_page **target ) {
 	}
 
 	KASSERT( coremap_is_wired( paddr ) );
-	KASSERT( lock_do_i_hold( vmp->vmp_lk ) );
+	KASSERT( spinlock_do_i_hold( &vmp->vmp_lk ) );
 	KASSERT( curthread->t_vmp_count == 1 );
 
 	//acquire the source page.
@@ -242,11 +242,7 @@ vm_page_create( ) {
 	if( vmp == NULL )
 		return NULL;
 	
-	vmp->vmp_lk = lock_create( "vmp_lk" );
-	if( vmp->vmp_lk == NULL ) {
-		kfree( vmp );
-		return NULL;
-	}
+	spinlock_init( &vmp->vmp_lk );
 
 	//initialize both the physical address
 	//and swap address to be invalid.
