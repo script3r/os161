@@ -30,9 +30,7 @@ struct coremap_entry {
 				cme_last : 1,		/* is this the last of a multi-page allocation? */
 				cme_alloc: 1,		/* are we allocated? */
 				cme_wired: 1,		/* are we wired? */
-				cme_desired : 1,	/* page is desired by someone. */
-				cme_referenced: 1,	/* referenced? */
-				cme_cpu : 6;		/* which cpu ? */
+				cme_cpu : 5;
 };
 
 void			coremap_bootstrap( void );

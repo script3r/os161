@@ -50,7 +50,6 @@ coremap_init_entry( unsigned int ix ) {
 	coremap[ix].cme_kernel = 0;
 	coremap[ix].cme_last = 0;
 	coremap[ix].cme_alloc = 0;
-	coremap[ix].cme_referenced = 0;
 	coremap[ix].cme_wired = 0;
 	coremap[ix].cme_tlb_ix = -1;
 	coremap[ix].cme_cpu = 0;
@@ -445,7 +444,6 @@ mark_pages_as_allocated( int start, int num, bool wired, bool is_kernel ) {
 		coremap[i].cme_alloc = 1;
 		coremap[i].cme_wired = ( wired ) ? 1 : 0;
 		coremap[i].cme_kernel = ( is_kernel ) ? 1 : 0;
-		coremap[i].cme_referenced = 1;
 	}
 	
 	//mark the last page of this allocation as the last.
@@ -572,6 +570,7 @@ coremap_free( paddr_t paddr, bool is_kernel ) {
 	uint32_t		i;
 	uint32_t		ix;
 
+	KASSERT( (paddr & PAGE_FRAME) == paddr );
 	//convert the given physical address into the appropriate
 	//physical frame.
 	ix = PADDR_TO_COREMAP( paddr );
@@ -587,14 +586,8 @@ coremap_free( paddr_t paddr, bool is_kernel ) {
 		KASSERT( coremap[i].cme_wired || is_kernel );
 		
 		//invalidate the given c
-		if( coremap[i].cme_tlb_ix != -1) {
-			KASSERT( coremap[i].cme_cpu == curcpu->c_number );
-
-			//invalidate the tlb entry.
+		if( coremap[i].cme_tlb_ix >= 0 )
 			tlb_invalidate( coremap[i].cme_tlb_ix );
-			coremap[i].cme_tlb_ix = -1;
-			coremap[i].cme_cpu = 0;
-		}
 			
 		//mark it as deallocated and update stats.
 		coremap[i].cme_alloc = 0;

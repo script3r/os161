@@ -47,6 +47,7 @@ tlb_unmap( vaddr_t vaddr ) {
 	uint32_t	tlb_lo;
 
 	COREMAP_IS_LOCKED();
+	
 	//probe the tlb for the given vaddr.
 	ix_tlb = tlb_probe( vaddr, 0 );
 
@@ -78,9 +79,6 @@ tlb_invalidate( int ix_tlb ) {
 	//read the tlb entry given by ix_tlb.
 	tlb_read( &tlb_hi, &tlb_lo, ix_tlb );
 
-	//invalidate it.
-	tlb_write( TLBHI_INVALID( ix_tlb ), TLBLO_INVALID() , ix_tlb );
-
 	//check to see that the entry retrieved was valid.
 	if( tlb_lo & TLBLO_VALID ) {
 		//get the physical address mapped to it.
@@ -91,10 +89,14 @@ tlb_invalidate( int ix_tlb ) {
 		
 		KASSERT(coremap[ix_cme].cme_tlb_ix == ix_tlb);
 		KASSERT(coremap[ix_cme].cme_cpu == curcpu->c_number);
+
+		//invalidate it.a
+		coremap[ix_cme].cme_tlb_ix = -1;
+		coremap[ix_cme].cme_cpu = 0;
+
+		tlb_write( TLBHI_INVALID( ix_tlb ), TLBLO_INVALID() , ix_tlb );
 	}
 
-	coremap[ix_cme].cme_tlb_ix = -1;
-	coremap[ix_cme].cme_cpu = 0;
 }
 
 /**
