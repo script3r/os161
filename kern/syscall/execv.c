@@ -14,10 +14,6 @@
 #include <vfs.h>
 #include <syscall.h>
 
-#ifndef NARG_MAX
-#define NARG_MAX 1024
-#endif
-
 static char		karg[ARG_MAX];
 static unsigned char	kargbuf[ARG_MAX];
 

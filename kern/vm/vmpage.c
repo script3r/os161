@@ -228,6 +228,8 @@ vm_page_clone( struct vm_page *source, struct vm_page **target ) {
 	//unwire both pages.
 	coremap_unwire( source_paddr );
 	coremap_unwire( paddr );
+
+
 	*target = vmp;
 
 	//not in clone anymore

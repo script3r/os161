@@ -232,7 +232,6 @@ find_pageable_page( void ) {
 		if( coremap_is_pageable( i ) )
 			return i;
 
-	panic( "find_pageable_page: no pageable pages were found." );
 	return -1;
 }
 
@@ -323,6 +322,9 @@ coremap_page_replace( void ) {
 
 	//find a page that we could evict.
 	ix = find_pageable_page();
+	if( ix < 0 )
+		return ix;
+
 	KASSERT( coremap_is_pageable( ix ) );
 	KASSERT( coremap[ix].cme_alloc == 1 );
 	KASSERT( coremap[ix].cme_page != NULL );
@@ -381,8 +383,9 @@ coremap_alloc_single( struct vm_page *vmp, bool wired ) {
 	//if the index is still negative, it means that
 	//there's nothing to do anymore, we cannot grab a page.
 	if( ix < 0 ) {
-		KASSERT( !lock_do_i_hold( giant_paging_lock ) );
 		UNLOCK_COREMAP();
+		if( lock_do_i_hold( giant_paging_lock ) )
+			UNLOCK_PAGING_GIANT();
 		return INVALID_PADDR;
 	}
 
