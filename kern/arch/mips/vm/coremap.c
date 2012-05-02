@@ -626,8 +626,7 @@ vm_tlbshootdown( const struct tlbshootdown *ts ) {
 	cme_ix = ts->ts_cme_ix;
 	tlb_ix = ts->ts_tlb_ix;
 
-	if( coremap[cme_ix].cme_cpu == curcpu->c_number ) {
-		KASSERT( coremap[cme_ix].cme_tlb_ix == tlb_ix );
+	if( coremap[cme_ix].cme_cpu == curcpu->c_number && coremap[cme_ix].cme_tlb_ix == tlb_ix ) {
 		tlb_invalidate( tlb_ix );
 		wchan_wakeall( wc_shootdown );
 	}

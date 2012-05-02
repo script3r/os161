@@ -5,7 +5,7 @@
 #include <filedesc.h>
 #include <synch.h>
 
-#define MAX_PROCESSES 64
+#define MAX_PROCESSES 32
 #define PROC_RESERVED_SPOT 0xcafebabe
 #define PROC_MAX_HEAP_PAGES 2048
 

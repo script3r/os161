@@ -3,7 +3,7 @@
 
 #include <file.h>
 
-#define MAX_OPEN_FILES 16
+#define MAX_OPEN_FILES 8
 #define FD_RESERVED_SPOT 0xcafebabe
 
 struct filedesc {
