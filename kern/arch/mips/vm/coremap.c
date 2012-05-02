@@ -112,6 +112,12 @@ coremap_bootstrap( void ) {
 	if( wc_transit == NULL )
 		panic( "coremap_bootstrap: wc_transit." );
 
+	//create the giant paging lock.
+	giant_paging_lock = lock_create( "giant_paging_lock" );
+	if( giant_paging_lock == NULL ) 
+		panic( "vm_bootstrap: could not create giant_paging_lock." );
+
+
 	coremap_initialized = true;
 }
 

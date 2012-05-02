@@ -103,12 +103,7 @@ swap_bootstrap() {
 	lk_sw = lock_create( "lk_sw" );
 	if( lk_sw == NULL )
 		panic( "swap_bootstrap: could not create the swap lock." );
-	//create the giant paging lock.
-	giant_paging_lock = lock_create( "giant_paging_lock" );
-	if( giant_paging_lock == NULL ) 
-		panic( "vm_bootstrap: could not create giant_paging_lock." );
-
-	//remove the first page.
+		//remove the first page.
 	bitmap_mark( bm_sw, 0 );
 
 	//update stats.
