@@ -140,12 +140,12 @@ thread_create(const char *name)
 	thread->t_stack = NULL;
 	thread->t_context = NULL;
 	thread->t_cpu = NULL;
-
 	/* Interrupt state fields */
 	thread->t_in_interrupt = false;
 	thread->t_curspl = IPL_HIGH;
 	thread->t_iplhigh_count = 1; /* corresponding to t_curspl */
 	thread->t_vmp_count = 0;
+	thread->t_clone = 0;
 
 	/* VM fields */
 	thread->t_addrspace = NULL;

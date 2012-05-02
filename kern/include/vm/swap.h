@@ -10,9 +10,9 @@
 #define LOCK_SWAP() (lock_acquire(lk_sw))
 #define UNLOCK_SWAP() (lock_release(lk_sw))
 
-#define LOCK_PAGING_GIANT() KASSERT(curthread->t_vmp_count == 0); lock_acquire(giant_paging_lock)
+#define LOCK_PAGING_GIANT() KASSERT(curthread->t_vmp_count == 0 || curthread->t_clone ); lock_acquire(giant_paging_lock)
 #define UNLOCK_PAGING_GIANT() (lock_release(giant_paging_lock))
-#define LOCK_PAGING_IF_POSSIBLE() KASSERT( curthread->t_vmp_count == 0 ); if( curthread != NULL && !curthread->t_in_interrupt ) lock_acquire( giant_paging_lock )
+#define LOCK_PAGING_IF_POSSIBLE() KASSERT( curthread->t_vmp_count == 0 || curthread->t_clone ); if( curthread != NULL && !curthread->t_in_interrupt ) lock_acquire( giant_paging_lock )
 #define UNLOCK_PAGING_IF_POSSIBLE() if( curthread != NULL && !curthread->t_in_interrupt ) lock_release( giant_paging_lock )
 
 /**

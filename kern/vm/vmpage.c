@@ -135,7 +135,7 @@ vm_page_destroy( struct vm_page *vmp ) {
 void
 vm_page_lock( struct vm_page *vmp ) {
 	KASSERT( !spinlock_do_i_hold( &vmp->vmp_lk ) );
-	KASSERT( curthread->t_vmp_count == 0 );
+	KASSERT( curthread->t_vmp_count == 0 || curthread->t_clone );
 
 	spinlock_acquire( &vmp->vmp_lk );
 	++curthread->t_vmp_count;
@@ -144,7 +144,7 @@ vm_page_lock( struct vm_page *vmp ) {
 void
 vm_page_unlock( struct vm_page *vmp ) {
 	KASSERT( spinlock_do_i_hold( &vmp->vmp_lk ) );
-	KASSERT( curthread->t_vmp_count == 1 );
+	KASSERT( curthread->t_vmp_count == 1 || curthread->t_clone );
 
 	spinlock_release( &vmp->vmp_lk );
 	--curthread->t_vmp_count;
@@ -158,9 +158,13 @@ vm_page_clone( struct vm_page *source, struct vm_page **target ) {
 	paddr_t			source_paddr;
 	off_t			swap_addr;
 
+	//we are in clone
+	curthread->t_clone = 1;
+
 	//create a new vm_page
 	res = vm_page_new( &vmp, &paddr );
 	if( res ) {
+		curthread->t_clone = 0;
 		return res;
 	}
 
@@ -169,9 +173,7 @@ vm_page_clone( struct vm_page *source, struct vm_page **target ) {
 	KASSERT( curthread->t_vmp_count == 1 );
 
 	//acquire the source page.
-	--curthread->t_vmp_count;
 	vm_page_acquire( source );
-	++curthread->t_vmp_count;
 
 	source_paddr = source->vmp_paddr & PAGE_FRAME;
 	//if the source page is not in core, swap it in.
@@ -180,9 +182,7 @@ vm_page_clone( struct vm_page *source, struct vm_page **target ) {
 		swap_addr = source->vmp_swapaddr;
 		
 		//unlock the source page.
-		--curthread->t_vmp_count;
 		vm_page_unlock( source );
-		++curthread->t_vmp_count;
 
 		//alocate memory for the source page.
 		source_paddr = coremap_alloc( source, true );
@@ -193,7 +193,9 @@ vm_page_clone( struct vm_page *source, struct vm_page **target ) {
 			//unlock and destroy the new page.
 			vm_page_unlock( vmp );
 			vm_page_destroy( vmp );
-
+			
+			//not in clone anymore
+			curthread->t_clone = 0;
 			return ENOMEM;
 		}
 		LOCK_PAGING_GIANT();
@@ -201,9 +203,7 @@ vm_page_clone( struct vm_page *source, struct vm_page **target ) {
 		swap_in( source_paddr, swap_addr );
 		
 		//lock the source.
-		--curthread->t_vmp_count;
 		vm_page_lock( source );
-		++curthread->t_vmp_count;
 
 		UNLOCK_PAGING_GIANT();
 
@@ -222,15 +222,16 @@ vm_page_clone( struct vm_page *source, struct vm_page **target ) {
 	coremap_clone( source_paddr, paddr );
 
 	//unlock both source and target.
-	--curthread->t_vmp_count;
 	vm_page_unlock( source );
-	++curthread->t_vmp_count;
 	vm_page_unlock( vmp );
 
 	//unwire both pages.
 	coremap_unwire( source_paddr );
 	coremap_unwire( paddr );
 	*target = vmp;
+
+	//not in clone anymore
+	curthread->t_clone = 0;
 	return 0;
 }
 

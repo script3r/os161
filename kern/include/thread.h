@@ -102,6 +102,8 @@ struct thread {
 	int t_curspl;			/* Current spl*() state */
 	int t_iplhigh_count;		/* # of times IPL has been raised */
 	int t_vmp_count;		/* # of vmpages locks */
+	int t_clone;
+
 	/*
 	 * Public fields
 	 */
