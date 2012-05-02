@@ -473,6 +473,9 @@ coremap_alloc_multipages( int npages ) {
 	int			i;
 
 	//lock the coremap for atomicity.
+	LOCK_PAGING_IF_POSSIBLE();
+
+	//lock the coremap
 	LOCK_COREMAP();
 	
 	//find the optimal range to store npages.
@@ -483,6 +486,7 @@ coremap_alloc_multipages( int npages ) {
 	//if we couldn't find a range ... too bad.
 	if( ix < 0 ) {
 		UNLOCK_COREMAP();
+		UNLOCK_PAGING_IF_POSSIBLE();
 		return INVALID_PADDR;
 	}
 
@@ -490,11 +494,11 @@ coremap_alloc_multipages( int npages ) {
 	for( i = ix; i < ix + npages; ++i ) {
 		if( coremap[i].cme_alloc ) {
 			//if we can evict, oh well, then just do it.
-			if( curthread != NULL && !curthread->t_in_interrupt ) {
+			if( curthread != NULL && !curthread->t_in_interrupt )
 				coremap_evict( i );
-			}
 			else {
 				UNLOCK_COREMAP();
+				UNLOCK_PAGING_IF_POSSIBLE();
 				return INVALID_PADDR;
 			}
 		}	
@@ -506,7 +510,7 @@ coremap_alloc_multipages( int npages ) {
 
 	//unlock the coremap and proceed with life.
 	UNLOCK_COREMAP();
-
+	UNLOCK_PAGING_IF_POSSIBLE();
 	return COREMAP_TO_PADDR( ix );
 }
 
@@ -626,10 +630,8 @@ vm_tlbshootdown( const struct tlbshootdown *ts ) {
 	cme_ix = ts->ts_cme_ix;
 	tlb_ix = ts->ts_tlb_ix;
 
-	if( coremap[cme_ix].cme_cpu == curcpu->c_number && coremap[cme_ix].cme_tlb_ix == tlb_ix ) {
+	if( coremap[cme_ix].cme_cpu == curcpu->c_number && coremap[cme_ix].cme_tlb_ix == tlb_ix )
 		tlb_invalidate( tlb_ix );
-		wchan_wakeall( wc_shootdown );
-	}
 
 	wchan_wakeall( wc_shootdown );
 	UNLOCK_COREMAP();
